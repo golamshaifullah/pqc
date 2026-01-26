@@ -50,7 +50,8 @@ def load_libstempo(parfile: str | Path) -> pd.DataFrame:
     else:
         mjd = np.asarray(psr.toas(), dtype="float64")
     resid = np.asarray(psr.residuals(), dtype="float64")
-    sigma = np.asarray(psr.toaerrs, dtype="float64")
+    # libstempo toaerrs are in microseconds; convert to seconds to match resid
+    sigma = np.asarray(psr.toaerrs, dtype="float64") * 1e-6
     freq = np.asarray(psr.freqs, dtype="float64")
 
     out = {
