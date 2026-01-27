@@ -1,1 +1,2 @@
 global-exclude __pycache__ *.py[cod] *.py~
+recursive-include src/pqc/data *.dat

@@ -16,6 +16,52 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 @dataclass(frozen=True)
+class FeatureConfig:
+    """Configure feature-column extraction.
+
+    Args:
+        add_orbital_phase: If True, compute orbital phase from PB/T0.
+        add_solar_elongation: If True, compute solar elongation (requires astropy).
+        add_elevation: If True, compute elevation (deg) from telescope location.
+        add_airmass: If True, compute airmass from telescope location.
+        add_parallactic_angle: If True, compute parallactic angle (deg).
+        add_freq_bin: If True, add a coarse linear frequency-bin index.
+        freq_bins: Number of bins for ``freq_bin`` if enabled.
+        observatory_path: Optional observatory file with geocentric XYZ coords.
+    """
+    add_orbital_phase: bool = True
+    add_solar_elongation: bool = True
+    add_elevation: bool = False
+    add_airmass: bool = False
+    add_parallactic_angle: bool = False
+    add_freq_bin: bool = False
+    freq_bins: int = 8
+    observatory_path: str | None = None
+
+@dataclass(frozen=True)
+class StructureConfig:
+    """Configure feature-domain structure tests and detrending.
+
+    Args:
+        mode: One of ``none``, ``detrend``, ``test``, or ``both``.
+        detrend_features: Feature columns to detrend against.
+        structure_features: Feature columns to test for structure.
+        nbins: Number of bins for binned means/tests.
+        min_per_bin: Minimum points per bin to evaluate.
+        p_thresh: Threshold on approximate chi-square tail probability.
+        circular_features: Feature names treated as circular in [0,1).
+        structure_group_cols: Columns used to group structure tests/detrending.
+    """
+    mode: str = "none"
+    detrend_features: tuple[str, ...] = ("solar_elongation_deg", "orbital_phase")
+    structure_features: tuple[str, ...] = ("solar_elongation_deg", "orbital_phase")
+    nbins: int = 12
+    min_per_bin: int = 3
+    p_thresh: float = 0.01
+    circular_features: tuple[str, ...] = ("orbital_phase",)
+    structure_group_cols: tuple[str, ...] | None = None
+
+@dataclass(frozen=True)
 class BadMeasConfig:
     """Configure bad-measurement detection.
 

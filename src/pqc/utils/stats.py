@@ -82,3 +82,13 @@ def robust_scale_mad(x: np.ndarray) -> float:
     med = np.median(x)
     mad = np.median(np.abs(x - med))
     return 1.4826 * mad if mad > 0 else float(np.std(x))
+
+def chi2_sf_approx(chi2: float, dof: int) -> float:
+    """Approximate chi-square survival function using Wilson-Hilferty transform."""
+    if dof <= 0 or not np.isfinite(chi2):
+        return float("nan")
+    if chi2 < 0:
+        return 1.0
+    k = float(dof)
+    z = ((chi2 / k) ** (1.0 / 3.0) - (1.0 - 2.0 / (9.0 * k))) / np.sqrt(2.0 / (9.0 * k))
+    return 0.5 * erfc(z / np.sqrt(2.0))

@@ -14,6 +14,8 @@ fully-annotated pandas DataFrame or a small CLI for batch runs.
 - Merge timing arrays with timfile metadata
 - Normalize backend keys (sys/group) for per-backend analysis
 - Detect bad measurements and transient exponential recoveries
+- Optional feature columns (orbital phase, solar elongation, elevation/airmass/parallactic angle)
+- Feature-domain structure diagnostics and detrending
 
 ## Installation
 
@@ -42,6 +44,20 @@ pqc --par /path/to/pulsar.par --out out.csv \
   --delta-chi2 30
 ```
 
+CLI (feature structure + freq-bin grouping):
+
+```bash
+pqc --par /path/to/pulsar.par --out out.csv \
+  --add-freq-bin --freq-bins 8 \
+  --structure-mode both \
+  --structure-group-cols group,freq_bin \
+  --structure-test-features solar_elongation_deg,orbital_phase \
+  --structure-detrend-features solar_elongation_deg,orbital_phase \
+  --structure-summary-out structure_summary.csv
+```
+
+Note: elevation/airmass/parallactic angle use a bundled observatory XYZ file by default; override with `--observatory-file`.
+
 Python (default pipeline):
 
 ```python
@@ -62,6 +78,19 @@ df = run_pipeline(
     bad_cfg=BadMeasConfig(tau_corr_days=0.03, fdr_q=0.02),
     tr_cfg=TransientConfig(tau_rec_days=10.0, delta_chi2_thresh=30.0),
     merge_cfg=MergeConfig(tol_days=3.0 / 86400.0),
+)
+```
+
+Python (feature-structure diagnostics):
+
+```python
+from pqc.pipeline import run_pipeline
+from pqc.config import FeatureConfig, StructureConfig
+
+df = run_pipeline(
+    "/path/to/pulsar.par",
+    feature_cfg=FeatureConfig(add_orbital_phase=True, add_solar_elongation=True),
+    struct_cfg=StructureConfig(mode="both", p_thresh=0.01, structure_group_cols=("group", "freq_bin")),
 )
 ```
 

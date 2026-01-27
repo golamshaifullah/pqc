@@ -20,7 +20,14 @@ See Also:
 from __future__ import annotations
 import argparse
 from pqc.pipeline import run_pipeline
-from pqc.config import BadMeasConfig, TransientConfig, MergeConfig
+from pqc.config import BadMeasConfig, FeatureConfig, MergeConfig, StructureConfig, TransientConfig
+from pqc.utils.diagnostics import export_structure_table
+
+def _parse_csv_list(val: str | None) -> tuple[str, ...] | None:
+    if val is None:
+        return None
+    parts = [p.strip() for p in val.split(",") if p.strip()]
+    return tuple(parts)
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI argument parser.
@@ -46,6 +53,31 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--window-mult", type=float, default=5.0, help="Window length = window_mult * tau_rec." )
     p.add_argument("--min-points", type=int, default=6, help="Minimum points in transient window." )
     p.add_argument("--delta-chi2", type=float, default=25.0, help="Delta-chi2 threshold for transient detection." )
+
+    p.add_argument("--no-orbital-phase", action="store_true", help="Disable orbital phase feature extraction.")
+    p.add_argument("--no-solar-elongation", action="store_true", help="Disable solar elongation feature extraction.")
+    p.add_argument("--add-elevation", action="store_true", help="Add elevation feature (requires astropy + telescope site).")
+    p.add_argument("--add-airmass", action="store_true", help="Add airmass feature (requires astropy + telescope site).")
+    p.add_argument("--add-parallactic-angle", action="store_true", help="Add parallactic angle feature (requires astropy + telescope site).")
+    p.add_argument("--add-freq-bin", action="store_true", help="Add a linear frequency-bin index feature.")
+    p.add_argument("--freq-bins", type=int, default=8, help="Number of frequency bins if enabled.")
+    p.add_argument("--observatory-file", default=None, help="Optional observatory XYZ file for telescope locations.")
+
+    p.add_argument("--structure-mode", choices=["none", "detrend", "test", "both"], default="none",
+                   help="Feature-structure mode: none/detrend/test/both.")
+    p.add_argument("--structure-detrend-features", default=None,
+                   help="Comma-separated feature columns to detrend against.")
+    p.add_argument("--structure-test-features", default=None,
+                   help="Comma-separated feature columns to test for structure.")
+    p.add_argument("--structure-circular-features", default=None,
+                   help="Comma-separated circular features (phase in [0,1)).")
+    p.add_argument("--structure-group-cols", default=None,
+                   help="Comma-separated grouping columns for detrend/test (default: backend group).")
+    p.add_argument("--structure-nbins", type=int, default=12, help="Number of bins for structure tests/detrending.")
+    p.add_argument("--structure-min-per-bin", type=int, default=3, help="Minimum points per bin.")
+    p.add_argument("--structure-p-thresh", type=float, default=0.01, help="P-value threshold for structure flag.")
+    p.add_argument("--structure-summary-out", default=None,
+                   help="Optional CSV path for structure summary table.")
 
     return p
 
@@ -79,6 +111,32 @@ def main() -> None:
         delta_chi2_thresh=args.delta_chi2,
         suppress_overlap=True,
     )
+    defaults = StructureConfig()
+    detrend_feats = _parse_csv_list(args.structure_detrend_features) or defaults.detrend_features
+    test_feats = _parse_csv_list(args.structure_test_features) or defaults.structure_features
+    circ_feats = _parse_csv_list(args.structure_circular_features) or defaults.circular_features
+    group_cols = _parse_csv_list(args.structure_group_cols)
+
+    feature_cfg = FeatureConfig(
+        add_orbital_phase=not args.no_orbital_phase,
+        add_solar_elongation=not args.no_solar_elongation,
+        add_elevation=args.add_elevation,
+        add_airmass=args.add_airmass,
+        add_parallactic_angle=args.add_parallactic_angle,
+        add_freq_bin=args.add_freq_bin,
+        freq_bins=args.freq_bins,
+        observatory_path=args.observatory_file,
+    )
+    struct_cfg = StructureConfig(
+        mode=args.structure_mode,
+        detrend_features=detrend_feats,
+        structure_features=test_feats,
+        nbins=args.structure_nbins,
+        min_per_bin=args.structure_min_per_bin,
+        p_thresh=args.structure_p_thresh,
+        circular_features=circ_feats,
+        structure_group_cols=group_cols,
+    )
 
     df = run_pipeline(
         args.par,
@@ -86,10 +144,16 @@ def main() -> None:
         bad_cfg=bad_cfg,
         tr_cfg=tr_cfg,
         merge_cfg=merge_cfg,
+        feature_cfg=feature_cfg,
+        struct_cfg=struct_cfg,
         drop_unmatched=args.drop_unmatched,
     )
 
     df.to_csv(args.out, index=False)
+    if args.structure_summary_out:
+        cols = struct_cfg.structure_group_cols or (args.backend_col,)
+        summary = export_structure_table(df, group_cols=tuple(cols))
+        summary.to_csv(args.structure_summary_out, index=False)
 
 if __name__ == "__main__":
     main()

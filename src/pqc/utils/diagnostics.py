@@ -5,6 +5,7 @@ kept out of this module to keep dependencies minimal.
 """
 
 from __future__ import annotations
+import numpy as np
 import pandas as pd
 from pqc.utils.logging import info, warn
 
@@ -91,3 +92,48 @@ def export_event_table(df: pd.DataFrame, backend_col: str = "group") -> pd.DataF
         return pd.DataFrame()
     ev = ev.groupby([backend_col, "transient_id"], as_index=False).first()
     return ev[[c for c in [backend_col, "transient_id", "transient_t0", "transient_amp", "transient_delta_chi2"] if c in ev.columns]]
+
+def export_structure_table(
+    df: pd.DataFrame,
+    *,
+    group_cols: tuple[str, ...] = ("group",),
+    prefix: str = "structure_",
+) -> pd.DataFrame:
+    """Return a tidy table of feature-structure diagnostics per group.
+
+    Args:
+        df: QC DataFrame containing structure columns.
+        group_cols: Columns defining structure groups.
+        prefix: Prefix used for structure columns.
+
+    Returns:
+        DataFrame with one row per (group, feature) containing chi2/dof/p/present.
+    """
+    if df.empty:
+        return pd.DataFrame()
+    chi2_cols = [c for c in df.columns if c.startswith(prefix) and c.endswith("_chi2")]
+    if not chi2_cols:
+        return pd.DataFrame()
+
+    features = [c[len(prefix):-len("_chi2")] for c in chi2_cols]
+    cols = [c for c in group_cols if c in df.columns]
+    if not cols:
+        cols = []
+
+    rows = []
+    grouped = df.groupby(cols, dropna=False) if cols else [((), df)]
+    for key, sub in grouped:
+        first = sub.iloc[0]
+        key_vals = key if isinstance(key, tuple) else (key,)
+        for feat in features:
+            base = f"{prefix}{feat}"
+            row = {"feature": feat}
+            if cols:
+                row.update({col: val for col, val in zip(cols, key_vals)})
+            row["chi2"] = first.get(f"{base}_chi2", np.nan)
+            row["dof"] = first.get(f"{base}_dof", np.nan)
+            row["p"] = first.get(f"{base}_p", np.nan)
+            row["present"] = bool(first.get(f"{base}_present", False))
+            rows.append(row)
+
+    return pd.DataFrame(rows)
