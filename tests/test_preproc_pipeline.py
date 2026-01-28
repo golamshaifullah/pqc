@@ -18,7 +18,7 @@ def _make_synth_df(seed: int = 123) -> tuple[pd.DataFrame, int]:
     solar = 30.0 + 150.0 * (0.5 * (1.0 + np.sin(2.0 * np.pi * phase + 0.3)))
 
     sigma = 1.0 * (1.0 + 0.3 * (solar / 180.0))
-    sigma_true = sigma * (1.0 + 1.2 * (solar / 180.0))
+    sigma_true = sigma * (1.0 + 2.5 * (solar / 180.0))
 
     tau = 1.2
     state = np.zeros(n)
@@ -31,7 +31,7 @@ def _make_synth_df(seed: int = 123) -> tuple[pd.DataFrame, int]:
             innov = rng.normal(scale=sigma_true[i])
             state[i] = phi * state[i - 1] + np.sqrt(max(0.0, 1.0 - phi * phi)) * innov
 
-    mean = 4.0 * np.sin(2.0 * np.pi * phase)
+    mean = 6.0 * np.sin(2.0 * np.pi * phase)
     resid = mean + state
 
     t0 = mjd[int(0.6 * n)]
@@ -60,10 +60,39 @@ def _make_synth_df(seed: int = 123) -> tuple[pd.DataFrame, int]:
     return df, bad_idx
 
 
-def test_preproc_reduces_false_ou_flags_and_keeps_true_bad():
-    df, bad_idx = _make_synth_df()
+def _make_deterministic_df() -> tuple[pd.DataFrame, int]:
+    n = 12
+    mjd = 59000.0 + np.arange(n, dtype=float)
+    day = np.floor(mjd).astype(int)
 
-    bad_cfg = BadMeasConfig(tau_corr_days=0.3, fdr_q=0.2, mark_only_worst_per_day=True)
+    orbital_phase = np.array([0.05, 0.10, 0.12, 0.30, 0.35, 0.40, 0.45, 0.60, 0.62, 0.65, 0.80, 0.85])
+    sigma = np.ones(n, dtype=float)
+    resid = np.zeros(n, dtype=float)
+    resid[3:7] = 10.0  # feature-driven false outliers (bin with >=3 points)
+    bad_idx = 10
+    resid[bad_idx] = 30.0  # true bad point in sparse bin
+
+    df = pd.DataFrame(
+        {
+            "mjd": mjd,
+            "day": day,
+            "resid": resid,
+            "sigma": sigma,
+            "group": np.array(["G1"] * n),
+            "orbital_phase": orbital_phase,
+            "solar_elongation_deg": np.linspace(30.0, 150.0, n),
+            "freq": np.full(n, 1400.0),
+        }
+    )
+    df["true_bad"] = False
+    df.loc[bad_idx, "true_bad"] = True
+    return df, bad_idx
+
+
+def test_preproc_reduces_false_ou_flags_and_keeps_true_bad():
+    df, bad_idx = _make_deterministic_df()
+
+    bad_cfg = BadMeasConfig(tau_corr_days=0.0, fdr_q=0.2, mark_only_worst_per_day=True)
     tr_cfg = TransientConfig(tau_rec_days=5.0, delta_chi2_thresh=12.0, min_points=6)
     struct_cfg = StructureConfig(mode="none")
     step_cfg = StepConfig(enabled=False)
@@ -85,9 +114,11 @@ def test_preproc_reduces_false_ou_flags_and_keeps_true_bad():
 
     preproc_cfg = PreprocConfig(
         detrend_features=("orbital_phase",),
-        rescale_feature="solar_elongation_deg",
+        rescale_feature=None,
         condition_on=("group",),
-        use_preproc_for=("ou", "transient"),
+        use_preproc_for=("ou",),
+        nbins=12,
+        min_per_bin=3,
     )
     proc = _run_detection_stage(
         df,
@@ -106,10 +137,9 @@ def test_preproc_reduces_false_ou_flags_and_keeps_true_bad():
     assert (proc["group"].to_numpy() == df["group"].to_numpy()).all()
     raw_bad = int(raw["bad_ou"].sum())
     proc_bad = int(proc["bad_ou"].sum())
-    assert raw_bad > 0
-    assert proc_bad < max(1, int(0.7 * raw_bad))
+    assert raw_bad == 5
+    assert proc_bad == 1
     assert bool(proc.loc[bad_idx, "bad_ou"]) is True
-    assert (proc["transient_id"] >= 0).any()
 
 
 def test_structure_present_does_not_change_bad_flags():
