@@ -1,4 +1,13 @@
-"""Add feature columns for PTA QC diagnostics."""
+"""Add feature columns for PTA QC diagnostics.
+
+This module provides helpers that compute per-TOA covariates such as orbital
+phase, solar elongation, and observatory geometry. These features can be
+used for feature-domain structure tests or detrending before detection.
+
+See Also:
+    pqc.features.backend_keys.ensure_sys_group: Backend grouping helpers.
+    pqc.detect.feature_structure: Feature-domain structure diagnostics.
+"""
 
 from __future__ import annotations
 
@@ -10,7 +19,15 @@ import pandas as pd
 from pqc.utils.logging import warn
 
 def _read_par_value(parfile: str | Path, key: str) -> float | None:
-    """Return a float value for a key in a parfile, or None if missing."""
+    """Return a float value for a key in a parfile, or None if missing.
+
+    Args:
+        parfile (str | Path): Path to a pulsar ``.par`` file.
+        key (str): Parameter name to look up (e.g., ``PB``).
+
+    Returns:
+        float | None: Parsed float value, or None if missing/unparseable.
+    """
     pat = re.compile(rf"^\s*{re.escape(key)}\s+([^\s]+)")
     for line in Path(parfile).read_text(encoding="utf-8").splitlines():
         m = pat.match(line)
@@ -27,7 +44,24 @@ def add_orbital_phase(
     *,
     mjd_col: str = "mjd",
 ) -> pd.DataFrame:
-    """Add orbital phase in [0, 1) using PB and T0 from the parfile."""
+    """Add orbital phase in [0, 1) using PB and T0 from the parfile.
+
+    Args:
+        df (pandas.DataFrame): Input table containing timing rows.
+        parfile (str | Path): Pulsar ``.par`` file with ``PB`` and ``T0``.
+        mjd_col (str): Name of the MJD column in ``df``.
+
+    Returns:
+        pandas.DataFrame: Copy of ``df`` with an ``orbital_phase`` column.
+
+    Notes:
+        If ``PB`` or ``T0`` is missing or invalid, ``orbital_phase`` is filled
+        with NaNs.
+
+    Examples:
+        >>> # doctest: +SKIP
+        >>> # df = add_orbital_phase(df, "/path/to/psr.par")
+    """
     d = df.copy()
     pb = _read_par_value(parfile, "PB")
     t0 = _read_par_value(parfile, "T0")
@@ -46,7 +80,24 @@ def add_solar_elongation(
     *,
     mjd_col: str = "mjd",
 ) -> pd.DataFrame:
-    """Add solar elongation (deg) between pulsar and Sun at each MJD."""
+    """Add solar elongation (deg) between pulsar and Sun at each MJD.
+
+    Args:
+        df (pandas.DataFrame): Input table containing timing rows.
+        parfile (str | Path): Pulsar ``.par`` file with RA/DEC.
+        mjd_col (str): Name of the MJD column in ``df``.
+
+    Returns:
+        pandas.DataFrame: Copy of ``df`` with ``solar_elongation_deg``.
+
+    Notes:
+        Requires astropy. If astropy is unavailable or RA/DEC are missing,
+        ``solar_elongation_deg`` is filled with NaNs and a warning is issued.
+
+    Examples:
+        >>> # doctest: +SKIP
+        >>> # df = add_solar_elongation(df, "/path/to/psr.par")
+    """
     d = df.copy()
     try:
         from astropy.time import Time
@@ -81,7 +132,31 @@ def add_altaz_features(
     add_airmass: bool = True,
     add_parallactic: bool = True,
 ) -> pd.DataFrame:
-    """Add elevation, airmass, and parallactic angle using telescope locations."""
+    """Add elevation, airmass, and parallactic angle using telescope locations.
+
+    Args:
+        df (pandas.DataFrame): Input table containing timing rows.
+        parfile (str | Path): Pulsar ``.par`` file with RA/DEC.
+        mjd_col (str): Name of the MJD column in ``df``.
+        tel_col (str): Name of the telescope/site column in ``df``.
+        observatory_path (str | Path | None): Optional path to an observatory
+            XYZ file for telescope locations.
+        add_elevation (bool): If True, add ``elevation_deg``.
+        add_airmass (bool): If True, add ``airmass`` (sec(z) with horizon mask).
+        add_parallactic (bool): If True, add ``parallactic_angle_deg``.
+
+    Returns:
+        pandas.DataFrame: Copy of ``df`` with requested columns added.
+
+    Notes:
+        This function requires astropy. If astropy is unavailable or the
+        telescope site is unknown, corresponding values are NaN and a warning
+        is emitted.
+
+    Examples:
+        >>> # doctest: +SKIP
+        >>> # df = add_altaz_features(df, "/path/to/psr.par")
+    """
     d = df.copy()
     cols = []
     if add_elevation:
@@ -166,7 +241,27 @@ def add_freq_bin(
     nbins: int = 8,
     out_col: str = "freq_bin",
 ) -> pd.DataFrame:
-    """Add a linear frequency-bin index column."""
+    """Add a linear frequency-bin index column.
+
+    Args:
+        df (pandas.DataFrame): Input table containing timing rows.
+        freq_col (str): Name of the frequency column.
+        nbins (int): Number of linear bins.
+        out_col (str): Output column name.
+
+    Returns:
+        pandas.DataFrame: Copy of ``df`` with a ``freq_bin``-like column.
+
+    Notes:
+        If the frequency range is degenerate or missing, ``out_col`` is set to
+        a constant or NaN.
+
+    Examples:
+        >>> import pandas as pd
+        >>> df = pd.DataFrame({"freq": [1000.0, 1500.0, 2000.0]})
+        >>> add_freq_bin(df, nbins=2)["freq_bin"].nunique() <= 2
+        True
+    """
     d = df.copy()
     if freq_col not in d.columns:
         d[out_col] = np.nan
@@ -187,6 +282,14 @@ def add_freq_bin(
     return d
 
 def _read_par_radec(parfile: str | Path) -> tuple[str | None, str | None]:
+    """Read RA/DEC strings from a parfile.
+
+    Args:
+        parfile (str | Path): Path to a pulsar ``.par`` file.
+
+    Returns:
+        tuple[str | None, str | None]: ``(RAJ, DECJ)`` or ``(None, None)``.
+    """
     text = Path(parfile).read_text(encoding="utf-8").splitlines()
     raj = None
     decj = None
@@ -216,7 +319,28 @@ def add_feature_columns(
     freq_bins: int = 8,
     observatory_path: str | Path | None = None,
 ) -> pd.DataFrame:
-    """Add configured feature columns for QC."""
+    """Add configured feature columns for QC.
+
+    Args:
+        df (pandas.DataFrame): Input table containing timing rows.
+        parfile (str | Path): Pulsar ``.par`` file.
+        mjd_col (str): Name of the MJD column in ``df``.
+        add_orb_phase (bool): If True, add orbital phase.
+        add_solar (bool): If True, add solar elongation.
+        add_elevation (bool): If True, add elevation.
+        add_airmass (bool): If True, add airmass.
+        add_parallactic (bool): If True, add parallactic angle.
+        add_freq (bool): If True, add frequency-bin index.
+        freq_bins (int): Number of frequency bins if enabled.
+        observatory_path (str | Path | None): Optional observatory XYZ file path.
+
+    Returns:
+        pandas.DataFrame: Copy of ``df`` with requested feature columns added.
+
+    Examples:
+        >>> # doctest: +SKIP
+        >>> # df = add_feature_columns(df, "/path/to/psr.par")
+    """
     d = df.copy()
     if add_orb_phase:
         d = add_orbital_phase(d, parfile, mjd_col=mjd_col)
@@ -239,6 +363,16 @@ def add_feature_columns(
 def _load_observatory_map(
     observatory_path: str | Path | None,
 ) -> dict[str, tuple[float, float, float]]:
+    """Load an observatory name/code to geocentric XYZ mapping.
+
+    Args:
+        observatory_path (str | Path | None): Optional path to an observatory
+            XYZ file. If None, a bundled data file is used if present.
+
+    Returns:
+        dict[str, tuple[float, float, float]]: Mapping of lowercase site names
+        and codes to geocentric XYZ coordinates (meters).
+    """
     path = None
     if observatory_path is not None:
         path = Path(observatory_path)

@@ -1,22 +1,36 @@
-"""Merge timing arrays with timfile metadata."""
+"""Merge timing arrays with timfile metadata.
+
+This module provides a small helper to join libstempo timing arrays with
+parsed timfile metadata using nearest-neighbor matching in MJD space.
+
+See Also:
+    pqc.io.timfile.parse_all_timfiles: Parse timfile metadata.
+    pqc.io.libstempo_loader.load_libstempo: Load timing arrays via libstempo.
+"""
 
 from __future__ import annotations
 import pandas as pd
 
-def merge_time_and_meta(df_time: pd.DataFrame, df_meta: pd.DataFrame, tol_days: float) -> pd.DataFrame:
+def merge_time_and_meta(
+    df_time: pd.DataFrame,
+    df_meta: pd.DataFrame,
+    tol_days: float,
+) -> pd.DataFrame:
     """Merge TOA arrays with timfile metadata using nearest-neighbor MJD.
 
     Args:
-        df_time: DataFrame from :func:`pqc.io.libstempo_loader.load_libstempo`.
-        df_meta: DataFrame from :func:`pqc.io.timfile.parse_all_timfiles`.
-        tol_days: Maximum |ΔMJD| tolerance for matching.
+        df_time (pandas.DataFrame): Output of
+            :func:`pqc.io.libstempo_loader.load_libstempo`.
+        df_meta (pandas.DataFrame): Output of
+            :func:`pqc.io.timfile.parse_all_timfiles`.
+        tol_days (float): Maximum |ΔMJD| tolerance for matching.
 
     Returns:
-        DataFrame with tim metadata columns merged onto timing arrays.
+        pandas.DataFrame: Tim metadata columns merged onto timing arrays.
 
     Notes:
         This uses :func:`pandas.merge_asof` with ``direction="nearest"``. Rows
-        that cannot be matched within ``tol_days`` will retain ``NaN`` metadata
+        that cannot be matched within ``tol_days`` retain ``NaN`` metadata
         columns.
 
     Examples:

@@ -12,10 +12,10 @@ def norm_abs_sf(x: np.ndarray) -> np.ndarray:
     """Return survival probabilities for |Z| where Z ~ N(0,1).
 
     Args:
-        x: Array of non-negative z-values.
+        x (np.ndarray): Array of non-negative z-values.
 
     Returns:
-        Array of probabilities ``P(|Z| >= x)``.
+        np.ndarray: Probabilities ``P(|Z| >= x)``.
 
     Notes:
         This function uses the complementary error function from the standard
@@ -32,11 +32,11 @@ def bh_fdr(pvals: np.ndarray, q: float) -> np.ndarray:
     """Apply Benjamini–Hochberg FDR and return discovery mask.
 
     Args:
-        pvals: Array of p-values.
-        q: Target false discovery rate.
+        pvals (np.ndarray): Array of p-values.
+        q (float): Target false discovery rate.
 
     Returns:
-        Boolean array indicating discoveries.
+        np.ndarray: Boolean array indicating discoveries.
 
     Notes:
         The returned mask is aligned with the input ordering of ``pvals``.
@@ -66,10 +66,10 @@ def robust_scale_mad(x: np.ndarray) -> float:
     """Estimate scale using the median absolute deviation (MAD).
 
     Args:
-        x: Input sample array.
+        x (np.ndarray): Input sample array.
 
     Returns:
-        Robust estimate of standard deviation.
+        float: Robust estimate of standard deviation.
 
     Notes:
         Uses the standard Gaussian consistency factor (1.4826).
@@ -84,7 +84,18 @@ def robust_scale_mad(x: np.ndarray) -> float:
     return 1.4826 * mad if mad > 0 else float(np.std(x))
 
 def chi2_sf_approx(chi2: float, dof: int) -> float:
-    """Approximate chi-square survival function using Wilson-Hilferty transform."""
+    """Approximate chi-square survival function using Wilson-Hilferty transform.
+
+    Args:
+        chi2 (float): Chi-square statistic.
+        dof (int): Degrees of freedom.
+
+    Returns:
+        float: Approximate survival probability ``P(Chi2 >= chi2)``.
+
+    Notes:
+        This approximation avoids SciPy and is intended for rough diagnostics.
+    """
     if dof <= 0 or not np.isfinite(chi2):
         return float("nan")
     if chi2 < 0:

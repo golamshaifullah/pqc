@@ -1,4 +1,12 @@
-"""Detect feature-domain structure and provide simple detrending utilities."""
+"""Detect feature-domain structure and provide simple detrending utilities.
+
+This module provides lightweight, binned diagnostics for feature-dependent
+structure in residuals, as well as a simple binned-mean detrending helper.
+
+See Also:
+    pqc.features.feature_extraction: Feature extraction helpers.
+    pqc.detect.bad_measurements.detect_bad: Downstream outlier detector.
+"""
 
 from __future__ import annotations
 
@@ -8,6 +16,17 @@ import pandas as pd
 from pqc.utils.stats import chi2_sf_approx
 
 def _bin_edges(x: np.ndarray, nbins: int, circular: bool) -> np.ndarray:
+    """Compute bin edges for linear or circular features.
+
+    Args:
+        x (np.ndarray): Feature values.
+        nbins (int): Requested number of bins.
+        circular (bool): Whether the feature is circular in [0, 1).
+
+    Returns:
+        np.ndarray: Bin edge array of length ``nbins + 1`` or a minimal fallback
+        when the range is degenerate.
+    """
     if circular:
         return np.linspace(0.0, 1.0, nbins + 1)
     lo = float(np.nanmin(x))
@@ -26,7 +45,31 @@ def detect_binned_structure(
     circular: bool = False,
     min_per_bin: int = 3,
 ) -> dict:
-    """Test for coherent feature dependence using binned weighted means."""
+    """Test for coherent feature dependence using binned weighted means.
+
+    Args:
+        df (pandas.DataFrame): Input table with feature and residual columns.
+        feature_col (str): Feature column name.
+        resid_col (str): Residual column name.
+        sigma_col (str): Uncertainty column name.
+        nbins (int): Number of bins for the feature.
+        circular (bool): If True, treat feature as circular in [0, 1).
+        min_per_bin (int): Minimum points required per bin.
+
+    Returns:
+        dict: Dictionary with ``chi2``, ``dof``, ``p_like`` (approximate tail
+        probability), and ``bin_table`` (per-bin summary DataFrame).
+
+    Notes:
+        The chi-square statistic tests whether binned means are consistent with
+        zero. This diagnostic does not label individual TOAs as bad.
+
+    Examples:
+        >>> import pandas as pd
+        >>> df = pd.DataFrame({"f": [0, 0, 1, 1], "resid": [0.0, 0.0, 0.0, 0.0], "sigma": [1, 1, 1, 1]})
+        >>> detect_binned_structure(df, "f", nbins=2)["dof"] >= 0
+        True
+    """
     d = df[[feature_col, resid_col, sigma_col]].dropna().copy()
     if d.empty:
         return {"chi2": np.nan, "dof": 0, "p_like": np.nan, "bin_table": pd.DataFrame()}
@@ -38,17 +81,23 @@ def detect_binned_structure(
     if circular:
         x = np.mod(x, 1.0)
 
-    edges = _bin_edges(x, nbins, circular)
+    nbins_req = int(nbins)
+    n_points = len(x)
+    nbins_eff = max(3, int(n_points // max(1, min_per_bin)))
+    nbins_eff = min(nbins_req, nbins_eff) if nbins_req > 0 else nbins_eff
+
+    edges = _bin_edges(x, nbins_eff, circular)
     if edges.size <= 1:
         return {"chi2": np.nan, "dof": 0, "p_like": np.nan, "bin_table": pd.DataFrame()}
 
+    nbins_eff = max(1, int(edges.size - 1))
     bin_id = np.digitize(x, edges) - 1
-    bin_id = np.clip(bin_id, 0, nbins - 1)
+    bin_id = np.clip(bin_id, 0, nbins_eff - 1)
 
     rows = []
     chi2 = 0.0
     dof = 0
-    for b in range(nbins):
+    for b in range(nbins_eff):
         m = bin_id == b
         if np.count_nonzero(m) < min_per_bin:
             continue
@@ -85,7 +134,32 @@ def detrend_residuals_binned(
     min_per_bin: int = 3,
     out_col: str = "resid_detrended",
 ) -> pd.DataFrame:
-    """Subtract a binned weighted-mean trend from residuals."""
+    """Subtract a binned weighted-mean trend from residuals.
+
+    Args:
+        df (pandas.DataFrame): Input table with feature and residual columns.
+        feature_col (str): Feature column name.
+        resid_col (str): Residual column name.
+        sigma_col (str): Uncertainty column name.
+        nbins (int): Number of bins for the feature.
+        circular (bool): If True, treat feature as circular in [0, 1).
+        min_per_bin (int): Minimum points required per bin.
+        out_col (str): Output column name for detrended residuals.
+
+    Returns:
+        pandas.DataFrame: Copy of ``df`` with ``out_col`` added.
+
+    Notes:
+        Bins with too few points are ignored; residuals in those bins are left
+        unchanged.
+
+    Examples:
+        >>> import pandas as pd
+        >>> df = pd.DataFrame({"f": [0, 0, 1, 1], "resid": [1.0, 1.0, -1.0, -1.0], "sigma": [1, 1, 1, 1]})
+        >>> out = detrend_residuals_binned(df, "f", nbins=2, min_per_bin=2)
+        >>> float(out["resid_detrended"].mean()) == 0.0
+        True
+    """
     d = df.copy()
     if feature_col not in d.columns:
         d[out_col] = d[resid_col]
@@ -103,16 +177,21 @@ def detrend_residuals_binned(
     if circular:
         x = np.mod(x, 1.0)
 
-    edges = _bin_edges(x[good], nbins, circular)
+    nbins_req = int(nbins)
+    n_points = int(np.count_nonzero(good))
+    nbins_eff = max(3, int(n_points // max(1, min_per_bin)))
+    nbins_eff = min(nbins_req, nbins_eff) if nbins_req > 0 else nbins_eff
+
+    edges = _bin_edges(x[good], nbins_eff, circular)
     if edges.size <= 1:
         return d
 
     bin_id = np.digitize(x, edges) - 1
-    bin_id = np.clip(bin_id, 0, nbins - 1)
+    bin_id = np.clip(bin_id, 0, nbins_eff - 1)
 
-    means = np.zeros(nbins, dtype=float)
-    has_mean = np.zeros(nbins, dtype=bool)
-    for b in range(nbins):
+    means = np.zeros(nbins_eff, dtype=float)
+    has_mean = np.zeros(nbins_eff, dtype=bool)
+    for b in range(nbins_eff):
         m = good & (bin_id == b)
         if np.count_nonzero(m) < min_per_bin:
             continue

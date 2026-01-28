@@ -24,10 +24,11 @@ def parse_timfile_triplet(timfile_path: str) -> tuple[str | None, str | None, fl
     """Parse ``TEL.BACKEND.BANDFREQ`` from a timfile basename.
 
     Args:
-        timfile_path: Path or basename of the timfile.
+        timfile_path (str): Path or basename of the timfile.
 
     Returns:
-        Tuple ``(tel, backend, band_mhz)``. Missing values are returned as None.
+        tuple[str | None, str | None, float | None]: Parsed ``(tel, backend,
+        band_mhz)`` values. Missing values are returned as None.
 
     Examples:
         >>> parse_timfile_triplet("EFF.PX.1400.tim")[:2]
@@ -50,11 +51,12 @@ def ensure_sys_group(df: pd.DataFrame) -> pd.DataFrame:
     """Fill missing ``sys``/``group`` using timfile naming and frequencies.
 
     Args:
-        df: Input DataFrame that may include ``_timfile``, ``freq``, and
-            optional ``cenfreq`` metadata columns.
+        df (pandas.DataFrame): Input DataFrame that may include ``_timfile``,
+            ``freq``, and optional ``cenfreq`` metadata columns.
 
     Returns:
-        A copy of ``df`` with ``sys`` and ``group`` columns populated.
+        pandas.DataFrame: Copy of ``df`` with ``sys`` and ``group`` columns
+        populated.
 
     Notes:
         If a telescope or backend cannot be inferred, ``UNK`` is used. The

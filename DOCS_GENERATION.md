@@ -1,18 +1,19 @@
 # Docs Generation Guide
 
 This repository uses Google-style docstrings and type hints to generate API
-documentation directly from the source.
+documentation directly from the source. The guidance below includes both
+Sphinx-based and MkDocs-based workflows.
 
 ## Recommended Toolchain
 
-- Sphinx with:
+- **Sphinx** with:
   - `sphinx.ext.autodoc`
   - `sphinx.ext.autosummary`
   - `sphinx.ext.napoleon` (Google-style docstrings)
   - `sphinx.ext.intersphinx` (optional)
-
-MkDocs with `mkdocstrings[python]` can also work, but the steps below assume
-Sphinx because it is the most common for Python API references.
+- **MkDocs** with either:
+  - `mkdocstrings[python]` (autodoc-style), or
+  - `mkgendocs` (standalone generator that renders Markdown from docstrings)
 
 ## Build Steps (Sphinx)
 
@@ -41,9 +42,11 @@ Sphinx because it is the most common for Python API references.
    autosummary_generate = True
    napoleon_google_docstring = True
    napoleon_numpy_docstring = False
+   autodoc_mock_imports = ["libstempo"]
    ```
 
-3. Create an API index file (e.g., `docs/api.rst`):
+3. Create an API index file (e.g., `docs/api.rst`) that includes submodules
+   recursively:
 
    ```rst
    API Reference
@@ -81,6 +84,58 @@ Sphinx because it is the most common for Python API references.
 
 5. Open `docs/_build/html/index.html` locally to view the manual.
 
+## Build Steps (MkDocs + mkdocstrings)
+
+1. Create a `mkdocs.yml` with a docs directory:
+
+   ```yaml
+   site_name: PQC Manual
+   nav:
+     - Home: index.md
+     - API: api.md
+   plugins:
+     - mkdocstrings:
+         handlers:
+           python:
+             options:
+               docstring_style: google
+   ```
+
+2. Create `docs/api.md` that includes submodules:
+
+   ```markdown
+   # API Reference
+
+   ::: pqc
+   ::: pqc.pipeline
+   ::: pqc.cli
+   ::: pqc.config
+   ::: pqc.detect
+   ::: pqc.features
+   ::: pqc.io
+   ::: pqc.utils
+   ```
+
+3. Build the docs:
+
+   ```bash
+   mkdocs build
+   ```
+
+## Build Steps (MkDocs + mkgendocs)
+
+1. Generate Markdown API pages from docstrings:
+
+   ```bash
+   mkgendocs
+   ```
+
+2. Include generated Markdown in your MkDocs `nav` as needed, then build:
+
+   ```bash
+   mkdocs build
+   ```
+
 ## Hosting
 
 You can serve the built HTML locally with:
@@ -92,5 +147,5 @@ python -m http.server --directory docs/_build/html
 ## Notes
 
 - Ensure `pqc` is installed (editable or otherwise) so autodoc can import it.
-- If libstempo is not installed in the docs environment, you may need to mock
-  its imports via `autodoc_mock_imports = ["libstempo"]` in `conf.py`.
+- If libstempo is not installed in the docs environment, mock its imports via
+  `autodoc_mock_imports = ["libstempo"]` in `conf.py`.

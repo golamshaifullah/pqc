@@ -1,5 +1,9 @@
 """Parse tempo2 timfiles into structured metadata tables.
 
+This module implements a permissive parser for tempo2-style timfiles with
+INCLUDE recursion. It handles common control lines and converts TOA records
+into a pandas DataFrame suitable for merging with libstempo timing arrays.
+
 Features:
     - INCLUDE recursion.
     - ``TIME <seconds>`` offsets applied to subsequent TOAs.
@@ -12,6 +16,10 @@ values rather than flag names by distinguishing flag-name tokens from numbers.
 Output columns include ``filename``, ``freq``, ``mjd``, ``sat``,
 ``toaerr_tim``, ``tel``, ``_timfile``, ``_time_offset_sec``, plus any ``-flag``
 values as additional columns.
+
+See Also:
+    pqc.io.libstempo_loader.load_libstempo: Load timing arrays via libstempo.
+    pqc.io.merge.merge_time_and_meta: Merge timfile metadata with timing data.
 """
 
 from __future__ import annotations
@@ -29,7 +37,14 @@ CONTROL_KEYWORDS: set[str] = {"MODE", "FORMAT", "EFAC", "EQUAD", "JUMP"}
 """Tempo2 timfile control keywords that are ignored by the parser."""
 
 def _is_number(tok: str) -> bool:
-    """Return True if ``tok`` parses as a float."""
+    """Return True if a token parses as a float.
+
+    Args:
+        tok (str): Candidate token.
+
+    Returns:
+        bool: True if ``tok`` parses as a float.
+    """
     try:
         float(tok)
         return True
@@ -37,18 +52,25 @@ def _is_number(tok: str) -> bool:
         return False
 
 def _is_flag_name(tok: str) -> bool:
-    """Return True for flag-name tokens (e.g., ``-sys``), not numeric values."""
+    """Return True for flag-name tokens (e.g., ``-sys``), not numeric values.
+
+    Args:
+        tok (str): Candidate token.
+
+    Returns:
+        bool: True if ``tok`` is a flag-name token.
+    """
     return tok.startswith("-") and not _is_number(tok)
 
 @dataclass
 class TimParseResult:
-    """Result of parsing timfiles.
+    """Hold the result of parsing timfiles.
 
     Attributes:
-        df: Parsed TOA metadata table.
-        dropped_lines: Count of malformed or skipped TOA lines.
-        commented_lines: Count of comment lines (C or #).
-        control_lines: Count of control/keyword lines (e.g., MODE/FORMAT).
+        df (pandas.DataFrame): Parsed TOA metadata table.
+        dropped_lines (int): Count of malformed or skipped TOA lines.
+        commented_lines (int): Count of comment lines (C or #).
+        control_lines (int): Count of control/keyword lines (e.g., MODE/FORMAT).
     """
     df: pd.DataFrame
     dropped_lines: int
@@ -63,12 +85,12 @@ def parse_all_timfiles(
     """Parse a tempo2 ``*_all.tim`` file with INCLUDE recursion.
 
     Args:
-        all_timfile: Path to the master timfile.
-        extra_control_keywords: Additional line-start keywords to ignore,
-            merged with :data:`CONTROL_KEYWORDS`.
+        all_timfile (str | Path): Path to the master timfile.
+        extra_control_keywords (set[str] | None): Additional line-start
+            keywords to ignore, merged with :data:`CONTROL_KEYWORDS`.
 
     Returns:
-        Parsed TOA metadata and a count of dropped lines.
+        TimParseResult: Parsed TOA metadata plus bookkeeping counts.
 
     Raises:
         FileNotFoundError: If an INCLUDE target is missing.

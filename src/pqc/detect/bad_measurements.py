@@ -3,6 +3,10 @@
 This module computes normalized innovations from an OU process and uses
 Benjamini–Hochberg false discovery rate control on day-level extremes to flag
 bad measurements.
+
+See Also:
+    pqc.detect.ou.ou_innovations_z: OU innovations used in this detector.
+    pqc.utils.stats.bh_fdr: Benjamini–Hochberg FDR control.
 """
 
 from __future__ import annotations
@@ -35,17 +39,19 @@ def detect_bad(
         4. Mark either the worst TOA per bad day or all TOAs on that day.
 
     Args:
-        df: Input DataFrame with timing arrays.
-        mjd_col: Column containing MJD values.
-        resid_col: Column containing residuals.
-        sigma_col: Column containing TOA uncertainties.
-        day_col: Column containing integer MJD day labels.
-        tau_corr_days: OU correlation timescale in days.
-        fdr_q: Target FDR rate for day-level tests.
-        mark_only_worst_per_day: If True, mark only the worst TOA per bad day.
+        df (pandas.DataFrame): Input DataFrame with timing arrays.
+        mjd_col (str): Column containing MJD values.
+        resid_col (str): Column containing residuals.
+        sigma_col (str): Column containing TOA uncertainties.
+        day_col (str): Column containing integer MJD day labels.
+        tau_corr_days (float): OU correlation timescale in days.
+        fdr_q (float): Target FDR rate for day-level tests.
+        mark_only_worst_per_day (bool): If True, mark only the worst TOA per
+            bad day.
 
     Returns:
-        DataFrame with added columns ``z``, ``_q_hat``, ``bad_day``, and ``bad``.
+        pandas.DataFrame: Copy with added columns ``z``, ``_q_hat``,
+        ``bad_day``, and ``bad``.
 
     Notes:
         This function expects ``df`` to contain finite values in ``mjd_col``,

@@ -19,15 +19,26 @@ from dataclasses import dataclass
 class FeatureConfig:
     """Configure feature-column extraction.
 
-    Args:
-        add_orbital_phase: If True, compute orbital phase from PB/T0.
-        add_solar_elongation: If True, compute solar elongation (requires astropy).
-        add_elevation: If True, compute elevation (deg) from telescope location.
-        add_airmass: If True, compute airmass from telescope location.
-        add_parallactic_angle: If True, compute parallactic angle (deg).
-        add_freq_bin: If True, add a coarse linear frequency-bin index.
-        freq_bins: Number of bins for ``freq_bin`` if enabled.
-        observatory_path: Optional observatory file with geocentric XYZ coords.
+    Attributes:
+        add_orbital_phase (bool): If True, compute orbital phase from PB/T0.
+        add_solar_elongation (bool): If True, compute solar elongation (requires
+            astropy).
+        add_elevation (bool): If True, compute elevation (deg) from telescope
+            location.
+        add_airmass (bool): If True, compute airmass from telescope location.
+        add_parallactic_angle (bool): If True, compute parallactic angle (deg).
+        add_freq_bin (bool): If True, add a coarse linear frequency-bin index.
+        freq_bins (int): Number of bins for ``freq_bin`` if enabled.
+        observatory_path (str | None): Optional observatory file with geocentric
+            XYZ coords.
+
+    Notes:
+        Feature extraction is optional. If astropy is not available, the
+        sky-position-based features are filled with NaNs and a warning is
+        emitted by the feature extraction helpers.
+
+    Examples:
+        >>> FeatureConfig(add_solar_elongation=False, add_freq_bin=True)
     """
     add_orbital_phase: bool = True
     add_solar_elongation: bool = True
@@ -42,15 +53,25 @@ class FeatureConfig:
 class StructureConfig:
     """Configure feature-domain structure tests and detrending.
 
-    Args:
-        mode: One of ``none``, ``detrend``, ``test``, or ``both``.
-        detrend_features: Feature columns to detrend against.
-        structure_features: Feature columns to test for structure.
-        nbins: Number of bins for binned means/tests.
-        min_per_bin: Minimum points per bin to evaluate.
-        p_thresh: Threshold on approximate chi-square tail probability.
-        circular_features: Feature names treated as circular in [0,1).
-        structure_group_cols: Columns used to group structure tests/detrending.
+    Attributes:
+        mode (str): One of ``none``, ``detrend``, ``test``, or ``both``.
+        detrend_features (tuple[str, ...]): Feature columns to detrend against.
+        structure_features (tuple[str, ...]): Feature columns to test for
+            structure.
+        nbins (int): Number of bins for binned means/tests.
+        min_per_bin (int): Minimum points per bin to evaluate.
+        p_thresh (float): Threshold on approximate chi-square tail probability.
+        circular_features (tuple[str, ...]): Feature names treated as circular
+            in [0, 1).
+        structure_group_cols (tuple[str, ...] | None): Columns used to group
+            structure tests/detrending.
+
+    Notes:
+        Structure detection is a diagnostic that flags feature-coherent
+        behavior without marking individual TOAs as bad.
+
+    Examples:
+        >>> StructureConfig(mode="both", nbins=16)
     """
     mode: str = "none"
     detrend_features: tuple[str, ...] = ("solar_elongation_deg", "orbital_phase")
@@ -65,20 +86,17 @@ class StructureConfig:
 class BadMeasConfig:
     """Configure bad-measurement detection.
 
-    Args:
-        tau_corr_days: OU correlation timescale in days.
-        fdr_q: Benjamini–Hochberg false discovery rate for day-level tests.
-        mark_only_worst_per_day: If True, mark only the worst TOA per bad day.
-
     Attributes:
-        tau_corr_days: OU correlation timescale in days.
-        fdr_q: Benjamini–Hochberg false discovery rate for day-level tests.
-        mark_only_worst_per_day: If True, mark only the worst TOA per bad day.
+        tau_corr_days (float): OU correlation timescale in days.
+        fdr_q (float): Benjamini–Hochberg false discovery rate for day-level
+            tests.
+        mark_only_worst_per_day (bool): If True, mark only the worst TOA per bad
+            day.
 
     Examples:
-        Increase the correlation timescale and be more permissive::
+        Increase the correlation timescale and be more permissive:
 
-            BadMeasConfig(tau_corr_days=0.03, fdr_q=0.02)
+        >>> BadMeasConfig(tau_corr_days=0.03, fdr_q=0.02)
     """
     tau_corr_days: float = 0.02     # OU correlation timescale (~30 min)
     fdr_q: float = 0.01             # day-level BH FDR
@@ -88,24 +106,21 @@ class BadMeasConfig:
 class TransientConfig:
     """Configure transient exponential-recovery detection.
 
-    Args:
-        tau_rec_days: Recovery timescale for the exponential decay (days).
-        window_mult: Window length multiplier relative to ``tau_rec_days``.
-        min_points: Minimum points required to consider a candidate window.
-        delta_chi2_thresh: Minimum Δχ² to accept a transient candidate.
-        suppress_overlap: If True, prevent overlapping transient assignments.
-
     Attributes:
-        tau_rec_days: Recovery timescale for the exponential decay (days).
-        window_mult: Window length multiplier relative to ``tau_rec_days``.
-        min_points: Minimum points required to consider a candidate window.
-        delta_chi2_thresh: Minimum Δχ² to accept a transient candidate.
-        suppress_overlap: If True, prevent overlapping transient assignments.
+        tau_rec_days (float): Recovery timescale for the exponential decay
+            (days).
+        window_mult (float): Window length multiplier relative to
+            ``tau_rec_days``.
+        min_points (int): Minimum points required to consider a candidate
+            window.
+        delta_chi2_thresh (float): Minimum Δχ² to accept a transient candidate.
+        suppress_overlap (bool): If True, prevent overlapping transient
+            assignments.
 
     Examples:
-        Look for longer recoveries and stronger events::
+        Look for longer recoveries and stronger events:
 
-            TransientConfig(tau_rec_days=14.0, delta_chi2_thresh=40.0)
+        >>> TransientConfig(tau_rec_days=14.0, delta_chi2_thresh=40.0)
     """
     tau_rec_days: float = 7.0       # exp recovery time constant
     window_mult: float = 5.0        # scan window = window_mult * tau_rec
@@ -114,18 +129,35 @@ class TransientConfig:
     suppress_overlap: bool = True
 
 @dataclass(frozen=True)
+
+@dataclass(frozen=True)
+class StepConfig:
+    """Configure step-like offset detection.
+
+    Attributes:
+        enabled (bool): Enable step detection.
+        min_points (int): Minimum points on each side of a candidate step.
+        delta_chi2_thresh (float): Minimum Δχ² to accept a step.
+        scope (str): One of ``backend``, ``global``, or ``both``.
+
+    Notes:
+        This detector searches for a single best step per group and annotates
+        rows occurring after the step time.
+    """
+    enabled: bool = True
+    min_points: int = 20
+    delta_chi2_thresh: float = 25.0
+    scope: str = "both"
 class MergeConfig:
     """Configure time/metadata matching.
 
-    Args:
-        tol_days: Maximum allowed |ΔMJD| when matching tim metadata to TOAs.
-
     Attributes:
-        tol_days: Maximum allowed |ΔMJD| when matching tim metadata to TOAs.
+        tol_days (float): Maximum allowed |ΔMJD| when matching tim metadata to
+            TOAs.
 
     Examples:
-        Use a 3-second merge tolerance::
+        Use a 3-second merge tolerance:
 
-            MergeConfig(tol_days=3.0 / 86400.0)
+        >>> MergeConfig(tol_days=3.0 / 86400.0)
     """
     tol_days: float = 2.0 / 86400.0 # 2 seconds default

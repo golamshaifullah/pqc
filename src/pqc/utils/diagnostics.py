@@ -2,6 +2,10 @@
 
 Summaries are printed in a human-readable form. Plotting is intentionally
 kept out of this module to keep dependencies minimal.
+
+See Also:
+    pqc.utils.logging: Logging helpers used for summaries.
+    pqc.pipeline.run_pipeline: Produces the DataFrame consumed by these helpers.
 """
 
 from __future__ import annotations
@@ -13,8 +17,8 @@ def summarize_dataset(df: pd.DataFrame, backend_col: str = "group") -> None:
     """Print a compact summary of dataset composition.
 
     Args:
-        df: QC DataFrame to summarize.
-        backend_col: Column used to define backend groupings.
+        df (pandas.DataFrame): QC DataFrame to summarize.
+        backend_col (str): Column used to define backend groupings.
 
     Notes:
         This function prints to stdout/stderr via :mod:`pqc.utils.logging`.
@@ -43,8 +47,8 @@ def summarize_results(df: pd.DataFrame, backend_col: str = "group") -> None:
     """Print summary of bad-measurement and transient outputs.
 
     Args:
-        df: QC DataFrame containing annotation columns.
-        backend_col: Column used to define backend groupings.
+        df (pandas.DataFrame): QC DataFrame containing annotation columns.
+        backend_col (str): Column used to define backend groupings.
 
     Notes:
         ``bad_day`` counts TOAs labeled as bad-day members, not unique days.
@@ -74,11 +78,12 @@ def export_event_table(df: pd.DataFrame, backend_col: str = "group") -> pd.DataF
     """Return a tidy event table (one row per detected transient).
 
     Args:
-        df: QC DataFrame containing transient annotation columns.
-        backend_col: Column used to define backend groupings.
+        df (pandas.DataFrame): QC DataFrame containing transient annotation
+            columns.
+        backend_col (str): Column used to define backend groupings.
 
     Returns:
-        DataFrame with one row per detected transient event.
+        pandas.DataFrame: One row per detected transient event.
 
     Examples:
         >>> import pandas as pd
@@ -102,12 +107,25 @@ def export_structure_table(
     """Return a tidy table of feature-structure diagnostics per group.
 
     Args:
-        df: QC DataFrame containing structure columns.
-        group_cols: Columns defining structure groups.
-        prefix: Prefix used for structure columns.
+        df (pandas.DataFrame): QC DataFrame containing structure columns.
+        group_cols (tuple[str, ...]): Columns defining structure groups.
+        prefix (str): Prefix used for structure columns.
 
     Returns:
-        DataFrame with one row per (group, feature) containing chi2/dof/p/present.
+        pandas.DataFrame: One row per (group, feature) containing
+        ``chi2``, ``dof``, ``p``, and ``present``.
+
+    Examples:
+        >>> import pandas as pd
+        >>> df = pd.DataFrame({
+        ...     "group": ["A", "A"],
+        ...     "structure_orbital_phase_chi2": [1.0, 1.0],
+        ...     "structure_orbital_phase_dof": [2, 2],
+        ...     "structure_orbital_phase_p": [0.3, 0.3],
+        ...     "structure_orbital_phase_present": [False, False],
+        ... })
+        >>> export_structure_table(df, group_cols=("group",)).shape[0]
+        1
     """
     if df.empty:
         return pd.DataFrame()

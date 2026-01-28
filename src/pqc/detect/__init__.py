@@ -1,11 +1,13 @@
 """Provide detection algorithms for PTA QC.
 
 This subpackage groups statistical detection routines used by
-:func:`pqc.pipeline.run_pipeline`.
+:func:`pqc.pipeline.run_pipeline`, including OU-based outlier detection,
+transient scans, and feature-domain structure diagnostics.
 
-Modules include:
-    - OU innovations and noise estimation (:mod:`pqc.detect.ou`).
-    - Bad measurement detection (:mod:`pqc.detect.bad_measurements`).
-    - Transient exponential recovery scans (:mod:`pqc.detect.transients`).
-    - Feature-domain structure tests (:mod:`pqc.detect.feature_structure`).
+See Also:
+    pqc.pipeline.run_pipeline: Pipeline entry point that calls detectors.
+    pqc.detect.ou: OU innovations and noise estimation.
+    pqc.detect.bad_measurements: Bad measurement detection.
+    pqc.detect.transients: Transient exponential recovery scans.
+    pqc.detect.feature_structure: Feature-domain structure tests.
 """

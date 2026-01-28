@@ -2,6 +2,10 @@
 
 We model short-term correlation via an Ornstein–Uhlenbeck (OU) process with
 correlation timescale ``tau_days`` and white-noise variance ``q``.
+
+See Also:
+    pqc.detect.bad_measurements.detect_bad: Uses OU innovations for outlier tests.
+    pqc.utils.stats.robust_scale_mad: Robust scale estimator used for q fitting.
 """
 
 from __future__ import annotations
@@ -19,14 +23,17 @@ def ou_innovations_z(
     """Compute normalized OU innovations for irregularly sampled data.
 
     Args:
-        t_days: Observation times (days).
-        y: Residual values aligned with ``t_days``.
-        sigma: Measurement uncertainties for ``y``.
-        tau_days: OU correlation timescale (days).
-        q: Additional white-noise variance term.
+        t_days (np.ndarray | Sequence[float]): Observation times (days).
+        y (np.ndarray | Sequence[float]): Residual values aligned with
+            ``t_days``.
+        sigma (np.ndarray | Sequence[float]): Measurement uncertainties for
+            ``y``.
+        tau_days (float): OU correlation timescale (days).
+        q (float): Additional white-noise variance term.
 
     Returns:
-        Array of normalized innovations ``z`` with ``NaN`` for invalid entries.
+        np.ndarray: Normalized innovations ``z`` with ``NaN`` for invalid
+        entries.
 
     Notes:
         The returned array is aligned with the input ordering of ``t_days`` and
@@ -69,14 +76,17 @@ def estimate_q(
     approximately 1.0.
 
     Args:
-        t_days: Observation times (days).
-        y: Residual values aligned with ``t_days``.
-        sigma: Measurement uncertainties for ``y``.
-        tau_days: OU correlation timescale (days).
-        q_max_factor: Upper bound multiplier relative to median ``sigma^2``.
+        t_days (np.ndarray | Sequence[float]): Observation times (days).
+        y (np.ndarray | Sequence[float]): Residual values aligned with
+            ``t_days``.
+        sigma (np.ndarray | Sequence[float]): Measurement uncertainties for
+            ``y``.
+        tau_days (float): OU correlation timescale (days).
+        q_max_factor (float): Upper bound multiplier relative to median
+            ``sigma^2``.
 
     Returns:
-        Estimated non-negative ``q`` value.
+        float: Estimated non-negative ``q`` value.
 
     Notes:
         If the innovations already have robust scale ≤ 1, the estimate is 0.

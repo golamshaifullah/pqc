@@ -12,7 +12,7 @@ def warn(msg: str) -> None:
     """Print a warning message to stderr.
 
     Args:
-        msg: Warning message text.
+        msg (str): Warning message text.
 
     Examples:
         >>> warn("Missing metadata")
@@ -23,7 +23,7 @@ def info(msg: str) -> None:
     """Print an informational message to stdout.
 
     Args:
-        msg: Message text.
+        msg (str): Message text.
 
     Examples:
         >>> info("Loading libstempo")

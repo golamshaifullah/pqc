@@ -1,17 +1,20 @@
-"""Run the PQC pipeline from a command-line interface.
+"""Provide a command-line interface for the PQC pipeline.
 
-This module wires configuration flags to :func:`pqc.pipeline.run_pipeline`.
-It is intentionally minimal and suitable for scripting or batch workflows
-where a CSV output is desired.
+This module wires CLI flags to :func:`pqc.pipeline.run_pipeline`. The CLI is
+intentionally minimal and suitable for scripting or batch workflows where a
+CSV output is desired. Optional feature extraction and structure diagnostics
+are exposed via additional flags.
 
 Examples:
-    Basic usage from a module invocation::
+    Basic usage from a module invocation:
 
-        python -m pqc.cli --par /data/J1909-3744.par --out out.csv
+    >>> # doctest: +SKIP
+    >>> # python -m pqc.cli --par /data/J1909-3744.par --out out.csv
 
-    Equivalent usage via the console script::
+    Equivalent usage via the console script:
 
-        pqc --par /data/J1909-3744.par --out out.csv
+    >>> # doctest: +SKIP
+    >>> # pqc --par /data/J1909-3744.par --out out.csv
 
 See Also:
     pqc.pipeline.run_pipeline: Python API for the same workflow.
@@ -24,6 +27,14 @@ from pqc.config import BadMeasConfig, FeatureConfig, MergeConfig, StructureConfi
 from pqc.utils.diagnostics import export_structure_table
 
 def _parse_csv_list(val: str | None) -> tuple[str, ...] | None:
+    """Parse a comma-separated list into a tuple.
+
+    Args:
+        val (str | None): Input string or None.
+
+    Returns:
+        tuple[str, ...] | None: Parsed values, or None if ``val`` is None.
+    """
     if val is None:
         return None
     parts = [p.strip() for p in val.split(",") if p.strip()]
@@ -33,7 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Build the CLI argument parser.
 
     Returns:
-        An :class:`argparse.ArgumentParser` configured for PTA QC options.
+        argparse.ArgumentParser: Configured parser for PTA QC options.
     """
     p = argparse.ArgumentParser(description="PTA residual QC: bad measurements + exponential transients")
 
@@ -85,16 +96,18 @@ def main() -> None:
     """Run the QC pipeline from command-line arguments.
 
     This function parses CLI options, constructs configuration objects, runs
-    the pipeline, and writes the output CSV.
+    the pipeline, and writes the output CSV. If requested, it also writes a
+    structure-summary CSV derived from the per-group structure diagnostics.
 
     Raises:
         FileNotFoundError: If the ``.par`` file or the sibling ``*_all.tim`` is
             missing.
 
     Examples:
-        Run with defaults and save to CSV::
+        Run with defaults and save to CSV:
 
-            pqc --par /data/J1909-3744.par --out out.csv
+        >>> # doctest: +SKIP
+        >>> # pqc --par /data/J1909-3744.par --out out.csv
     """
     args = build_parser().parse_args()
 

@@ -5,6 +5,10 @@ We model a transient as:
 ``y(t) ≈ A * exp(-(t - t0) / tau_rec)`` for ``t >= t0``, evaluated within a
 finite window. Candidate ``t0`` values are scanned at observation times and
 scored using Δχ² relative to a null model.
+
+See Also:
+    pqc.detect.bad_measurements.detect_bad: Bad measurement detector.
+    pqc.utils.stats: Statistical helpers used across detectors.
 """
 
 from __future__ import annotations
@@ -27,20 +31,26 @@ def scan_transients(
     """Scan for transient exponential recoveries and annotate affected rows.
 
     Args:
-        df: Input DataFrame with timing arrays.
-        mjd_col: Column containing MJD values.
-        resid_col: Column containing residuals.
-        sigma_col: Column containing TOA uncertainties.
-        exclude_bad_col: Column marking TOAs to exclude from transient search.
-        tau_rec_days: Recovery timescale for the exponential decay (days).
-        window_mult: Window length multiplier relative to ``tau_rec_days``.
-        min_points: Minimum number of points required in a candidate window.
-        delta_chi2_thresh: Minimum Δχ² to accept a candidate.
-        suppress_overlap: If True, suppress overlapping transient assignments.
+        df (pandas.DataFrame): Input DataFrame with timing arrays.
+        mjd_col (str): Column containing MJD values.
+        resid_col (str): Column containing residuals.
+        sigma_col (str): Column containing TOA uncertainties.
+        exclude_bad_col (str): Column marking TOAs to exclude from transient
+            search.
+        tau_rec_days (float): Recovery timescale for the exponential decay
+            (days).
+        window_mult (float): Window length multiplier relative to
+            ``tau_rec_days``.
+        min_points (int): Minimum number of points required in a candidate
+            window.
+        delta_chi2_thresh (float): Minimum Δχ² to accept a candidate.
+        suppress_overlap (bool): If True, suppress overlapping transient
+            assignments.
 
     Returns:
-        DataFrame with columns ``transient_id``, ``transient_amp``,
-        ``transient_t0``, and ``transient_delta_chi2`` added.
+        pandas.DataFrame: Copy with columns ``transient_id``,
+        ``transient_amp``, ``transient_t0``, and ``transient_delta_chi2``
+        added.
 
     Notes:
         The algorithm evaluates candidate start times at observation epochs

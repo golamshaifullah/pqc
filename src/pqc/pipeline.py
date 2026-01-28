@@ -27,7 +27,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from pqc.config import BadMeasConfig, FeatureConfig, MergeConfig, StructureConfig, TransientConfig
+from pqc.config import BadMeasConfig, FeatureConfig, MergeConfig, StructureConfig, TransientConfig, StepConfig
 from pqc.io.timfile import parse_all_timfiles
 from pqc.io.libstempo_loader import load_libstempo
 from pqc.io.merge import merge_time_and_meta
@@ -36,6 +36,7 @@ from pqc.features.feature_extraction import add_feature_columns
 from pqc.detect.bad_measurements import detect_bad
 from pqc.detect.feature_structure import detect_binned_structure, detrend_residuals_binned
 from pqc.detect.transients import scan_transients
+from pqc.detect.step_changes import detect_step, detect_dm_step
 from pqc.utils.logging import info, warn
 
 def run_pipeline(
@@ -47,6 +48,8 @@ def run_pipeline(
     merge_cfg: MergeConfig = MergeConfig(),
     feature_cfg: FeatureConfig = FeatureConfig(),
     struct_cfg: StructureConfig = StructureConfig(),
+    step_cfg: StepConfig = StepConfig(),
+    dm_cfg: StepConfig = StepConfig(enabled=True, min_points=20, delta_chi2_thresh=25.0, scope="both"),
     drop_unmatched: bool = False,
 ) -> pd.DataFrame:
     """Run the full PTA QC pipeline for a single pulsar.
@@ -56,15 +59,20 @@ def run_pipeline(
     annotates each TOA with QC flags and transient detections.
 
     Args:
-        parfile: Path to the pulsar ``.par`` file. A sibling ``*_all.tim`` is
-            required and will be discovered by filename convention.
-        backend_col: Column used to group TOAs for per-backend QC.
-        bad_cfg: Configuration for bad-measurement detection.
-        tr_cfg: Configuration for transient detection.
-        merge_cfg: Configuration for timfile/TOA matching.
-        feature_cfg: Configuration for feature-column extraction.
-        struct_cfg: Configuration for feature-domain structure tests/detrending.
-        drop_unmatched: If True, drop TOAs whose metadata could not be matched.
+        parfile (str | Path): Path to the pulsar ``.par`` file. A sibling
+            ``*_all.tim`` is required and will be discovered by filename
+            convention.
+        backend_col (str): Column used to group TOAs for per-backend QC.
+        bad_cfg (BadMeasConfig): Configuration for bad-measurement detection.
+        tr_cfg (TransientConfig): Configuration for transient detection.
+        merge_cfg (MergeConfig): Configuration for timfile/TOA matching.
+        feature_cfg (FeatureConfig): Configuration for feature-column extraction.
+        struct_cfg (StructureConfig): Configuration for feature-domain structure
+            tests/detrending.
+        step_cfg (StepConfig): Configuration for step-like offsets in residuals.
+        dm_cfg (StepConfig): Configuration for DM-like step offsets (freq-scaled).
+        drop_unmatched (bool): If True, drop TOAs whose metadata could not be
+            matched.
 
     Returns:
         pandas.DataFrame: Timing, metadata, and QC annotations. The output
@@ -201,6 +209,29 @@ def run_pipeline(
                 df_work.loc[idx, f"{base}_p"] = p_like
                 df_work.loc[idx, f"{base}_present"] = bool(np.isfinite(p_like) and p_like < struct_cfg.p_thresh)
 
+    # Optional step/DM step detection across all TOAs
+    if step_cfg.enabled and step_cfg.scope in ("global", "both"):
+        df_work = detect_step(
+            df_work,
+            mjd_col="mjd",
+            resid_col=resid_col,
+            sigma_col="sigma",
+            min_points=step_cfg.min_points,
+            delta_chi2_thresh=step_cfg.delta_chi2_thresh,
+            prefix="step_global",
+        )
+    if dm_cfg.enabled and dm_cfg.scope in ("global", "both"):
+        df_work = detect_dm_step(
+            df_work,
+            mjd_col="mjd",
+            resid_col=resid_col,
+            sigma_col="sigma",
+            freq_col="freq",
+            min_points=dm_cfg.min_points,
+            delta_chi2_thresh=dm_cfg.delta_chi2_thresh,
+            prefix="dm_step_global",
+        )
+
     for key, sub in df_work.groupby(backend_col):
         sub1 = detect_bad(
             sub,
@@ -218,6 +249,27 @@ def run_pipeline(
             suppress_overlap=tr_cfg.suppress_overlap,
             resid_col=resid_col,
         )
+        if step_cfg.enabled and step_cfg.scope in ("backend", "both"):
+            sub2 = detect_step(
+                sub2,
+                mjd_col="mjd",
+                resid_col=resid_col,
+                sigma_col="sigma",
+                min_points=step_cfg.min_points,
+                delta_chi2_thresh=step_cfg.delta_chi2_thresh,
+                prefix="step",
+            )
+        if dm_cfg.enabled and dm_cfg.scope in ("backend", "both"):
+            sub2 = detect_dm_step(
+                sub2,
+                mjd_col="mjd",
+                resid_col=resid_col,
+                sigma_col="sigma",
+                freq_col="freq",
+                min_points=dm_cfg.min_points,
+                delta_chi2_thresh=dm_cfg.delta_chi2_thresh,
+                prefix="dm_step",
+            )
         out.append(sub2)
 
     if not out:

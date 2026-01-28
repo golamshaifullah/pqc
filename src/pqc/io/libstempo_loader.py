@@ -3,6 +3,10 @@
 This module extracts TOA-level arrays from :class:`libstempo.tempopulsar` and
 returns a tidy :class:`pandas.DataFrame`. It includes observing frequencies
 used for each TOA.
+
+See Also:
+    pqc.io.timfile.parse_all_timfiles: Parse timfile metadata.
+    pqc.io.merge.merge_time_and_meta: Merge metadata with timing arrays.
 """
 
 from __future__ import annotations
@@ -15,11 +19,12 @@ def load_libstempo(parfile: str | Path) -> pd.DataFrame:
     """Load timing arrays from a ``.par``/``*_all.tim`` pair using libstempo.
 
     Args:
-        parfile: Path to the pulsar ``.par`` file. A sibling ``*_all.tim`` is
-            required and will be discovered by filename convention.
+        parfile (str | Path): Path to the pulsar ``.par`` file. A sibling
+            ``*_all.tim`` is required and will be discovered by filename
+            convention.
 
     Returns:
-        DataFrame with columns ``mjd``, ``resid``, ``sigma``, ``freq``, and
+        pandas.DataFrame: Columns ``mjd``, ``resid``, ``sigma``, ``freq``, and
         ``day`` (integer MJD). If available, ``bat_mjd`` is included.
 
     Raises:
