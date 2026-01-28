@@ -128,7 +128,6 @@ class TransientConfig:
     delta_chi2_thresh: float = 25.0
     suppress_overlap: bool = True
 
-@dataclass(frozen=True)
 
 @dataclass(frozen=True)
 class StepConfig:
@@ -148,6 +147,7 @@ class StepConfig:
     min_points: int = 20
     delta_chi2_thresh: float = 25.0
     scope: str = "both"
+@dataclass(frozen=True)
 class MergeConfig:
     """Configure time/metadata matching.
 
