@@ -44,7 +44,7 @@ def summarize_dataset(df: pd.DataFrame, backend_col: str = "group") -> None:
         info(vc.head(20).to_string())
 
 def summarize_results(df: pd.DataFrame, backend_col: str = "group") -> None:
-    """Print summary of bad-measurement and transient outputs.
+    """Print summary of detector outputs and per-backend rates.
 
     Args:
         df (pandas.DataFrame): QC DataFrame containing annotation columns.
@@ -57,8 +57,14 @@ def summarize_results(df: pd.DataFrame, backend_col: str = "group") -> None:
         >>> import pandas as pd
         >>> summarize_results(pd.DataFrame({"bad": [True, False], "bad_day": [True, False]}))
     """
-    if "bad" in df.columns:
+    if "bad_ou" in df.columns:
+        info(f"Bad (OU) TOAs: {int(df['bad_ou'].fillna(False).sum())}")
+    elif "bad" in df.columns:
         info(f"Bad TOAs: {int(df['bad'].fillna(False).sum())}")
+
+    if "bad_mad" in df.columns:
+        info(f"Bad (MAD) TOAs: {int(df['bad_mad'].fillna(False).sum())}")
+
     if "bad_day" in df.columns:
         info(f"Bad days: {int(df['bad_day'].fillna(False).sum())}")  # counts TOAs, not unique days
 
@@ -69,10 +75,38 @@ def summarize_results(df: pd.DataFrame, backend_col: str = "group") -> None:
             ev = df[df["transient_id"] >= 0].copy()
             cols = [backend_col, "transient_id", "transient_t0", "transient_amp", "transient_delta_chi2"]
             cols = [c for c in cols if c in ev.columns]
-            # one row per (backend, event)
             ev = ev.groupby([backend_col, "transient_id"], as_index=False).first()
             info("Detected events (first 30):")
             info(ev[cols].head(30).to_string(index=False))
+
+    if backend_col in df.columns and len(df):
+        per = df.groupby(backend_col, dropna=False)
+        base = per.size()
+        def _rate(col: str) -> pd.Series:
+            return per[col].apply(lambda s: float((s >= 0).mean()))
+        if "bad_ou" in df.columns:
+            bad_ou_rate = per["bad_ou"].mean()
+        elif "bad" in df.columns:
+            bad_ou_rate = per["bad"].mean()
+        else:
+            bad_ou_rate = pd.Series(0.0, index=base.index)
+        bad_mad_rate = per["bad_mad"].mean() if "bad_mad" in df.columns else pd.Series(0.0, index=base.index)
+        transient_rate = _rate("transient_id") if "transient_id" in df.columns else pd.Series(0.0, index=base.index)
+        step_rate = _rate("step_id") if "step_id" in df.columns else pd.Series(0.0, index=base.index)
+        dm_step_rate = _rate("dm_step_id") if "dm_step_id" in df.columns else pd.Series(0.0, index=base.index)
+        summary = pd.DataFrame(
+            {
+                "n": base,
+                "bad_ou_rate": bad_ou_rate,
+                "bad_mad_rate": bad_mad_rate,
+                "transient_rate": transient_rate,
+                "step_rate": step_rate,
+                "dm_step_rate": dm_step_rate,
+            }
+        )
+        summary = summary.sort_values("n", ascending=False).head(20)
+        info("Per-backend rates (top 20 by count):")
+        info(summary.to_string())
 
 def export_event_table(df: pd.DataFrame, backend_col: str = "group") -> pd.DataFrame:
     """Return a tidy event table (one row per detected transient).
@@ -151,7 +185,10 @@ def export_structure_table(
             row["chi2"] = first.get(f"{base}_chi2", np.nan)
             row["dof"] = first.get(f"{base}_dof", np.nan)
             row["p"] = first.get(f"{base}_p", np.nan)
-            row["present"] = bool(first.get(f"{base}_present", False))
+            present_val = first.get(f"{base}_present", False)
+            if f"structure_present_{feat}" in first:
+                present_val = first.get(f"structure_present_{feat}", present_val)
+            row["present"] = bool(present_val)
             rows.append(row)
 
     return pd.DataFrame(rows)

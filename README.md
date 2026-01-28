@@ -94,6 +94,33 @@ df = run_pipeline(
 )
 ```
 
+## Covariate-conditioned detection
+
+Detectors can optionally operate on residuals that are detrended and/or variance-rescaled
+as a function of covariates. This leaves the original residuals intact while adding
+preprocessed columns for selected detectors.
+
+CLI example (detrend orbital phase, rescale by solar elongation, run OU/transient on preproc):
+
+```bash
+pqc --par /path/to/pulsar.par --out out.csv \
+  --detrend-features orbital_phase \
+  --rescale-feature solar_elongation_deg \
+  --condition-on group,freq_bin \
+  --use-preproc-for ou,transient
+```
+
+Optional preprocessing controls:
+
+```bash
+pqc --par /path/to/pulsar.par --out out.csv \
+  --detrend-features orbital_phase \
+  --rescale-feature solar_elongation_deg \
+  --preproc-nbins 16 \
+  --preproc-min-per-bin 5 \
+  --preproc-circular-features orbital_phase
+```
+
 ## Documentation
 
 - Overview and examples: this README

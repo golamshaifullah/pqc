@@ -147,6 +147,14 @@ class StepConfig:
     min_points: int = 20
     delta_chi2_thresh: float = 25.0
     scope: str = "both"
+
+@dataclass(frozen=True)
+class RobustOutlierConfig:
+    """Configure robust (MAD-based) outlier detection."""
+    enabled: bool = True
+    z_thresh: float = 5.0
+    scope: str = "global"  # backend/global/both
+
 @dataclass(frozen=True)
 class MergeConfig:
     """Configure time/metadata matching.
@@ -161,3 +169,24 @@ class MergeConfig:
         >>> MergeConfig(tol_days=3.0 / 86400.0)
     """
     tol_days: float = 2.0 / 86400.0 # 2 seconds default
+
+@dataclass(frozen=True)
+class PreprocConfig:
+    """Configure covariate-conditioned preprocessing for detectors.
+
+    Attributes:
+        detrend_features (tuple[str, ...]): Feature columns to detrend against.
+        rescale_feature (str | None): Feature column for variance rescaling.
+        condition_on (tuple[str, ...]): Grouping columns for mean/variance models.
+        use_preproc_for (tuple[str, ...]): Detectors to run on processed residuals.
+        nbins (int): Default number of bins for mean/variance models.
+        min_per_bin (int): Minimum points per bin.
+        circular_features (tuple[str, ...]): Features treated as circular in [0, 1).
+    """
+    detrend_features: tuple[str, ...] = ()
+    rescale_feature: str | None = None
+    condition_on: tuple[str, ...] = ("group",)
+    use_preproc_for: tuple[str, ...] = ()
+    nbins: int = 12
+    min_per_bin: int = 5
+    circular_features: tuple[str, ...] = ("orbital_phase",)

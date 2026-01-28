@@ -23,7 +23,7 @@ See Also:
 from __future__ import annotations
 import argparse
 from pqc.pipeline import run_pipeline
-from pqc.config import BadMeasConfig, FeatureConfig, MergeConfig, StructureConfig, TransientConfig
+from pqc.config import BadMeasConfig, FeatureConfig, MergeConfig, StructureConfig, TransientConfig, PreprocConfig
 from pqc.utils.diagnostics import export_structure_table
 
 def _parse_csv_list(val: str | None) -> tuple[str, ...] | None:
@@ -90,6 +90,21 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--structure-summary-out", default=None,
                    help="Optional CSV path for structure summary table.")
 
+    p.add_argument("--detrend-features", default=None,
+                   help="Comma-separated feature columns to detrend for detectors.")
+    p.add_argument("--rescale-feature", default=None,
+                   help="Feature column for variance rescaling before detectors.")
+    p.add_argument("--condition-on", default=None,
+                   help="Comma-separated grouping columns for preprocessing (default: group).")
+    p.add_argument("--use-preproc-for", default=None,
+                   help="Comma-separated detectors to use preprocessed residuals (ou,transient,mad,step,dmstep).")
+    p.add_argument("--preproc-nbins", type=int, default=12,
+                   help="Number of bins for preprocessing mean/variance models.")
+    p.add_argument("--preproc-min-per-bin", type=int, default=5,
+                   help="Minimum points per bin for preprocessing.")
+    p.add_argument("--preproc-circular-features", default=None,
+                   help="Comma-separated circular features for preprocessing (phase in [0,1)).")
+
     return p
 
 def main() -> None:
@@ -150,6 +165,16 @@ def main() -> None:
         circular_features=circ_feats,
         structure_group_cols=group_cols,
     )
+    preproc_defaults = PreprocConfig()
+    preproc_cfg = PreprocConfig(
+        detrend_features=_parse_csv_list(args.detrend_features) or preproc_defaults.detrend_features,
+        rescale_feature=args.rescale_feature,
+        condition_on=_parse_csv_list(args.condition_on) or preproc_defaults.condition_on,
+        use_preproc_for=_parse_csv_list(args.use_preproc_for) or preproc_defaults.use_preproc_for,
+        nbins=args.preproc_nbins,
+        min_per_bin=args.preproc_min_per_bin,
+        circular_features=_parse_csv_list(args.preproc_circular_features) or preproc_defaults.circular_features,
+    )
 
     df = run_pipeline(
         args.par,
@@ -159,6 +184,7 @@ def main() -> None:
         merge_cfg=merge_cfg,
         feature_cfg=feature_cfg,
         struct_cfg=struct_cfg,
+        preproc_cfg=preproc_cfg,
         drop_unmatched=args.drop_unmatched,
     )
 
