@@ -190,3 +190,11 @@ class PreprocConfig:
     nbins: int = 12
     min_per_bin: int = 5
     circular_features: tuple[str, ...] = ("orbital_phase",)
+
+@dataclass(frozen=True)
+class OutlierGateConfig:
+    """Configure hard sigma gating for outlier membership."""
+    enabled: bool = False
+    sigma_thresh: float = 3.0
+    resid_col: str | None = None
+    sigma_col: str | None = None

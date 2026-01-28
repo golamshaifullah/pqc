@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from pqc.config import BadMeasConfig, TransientConfig, StructureConfig, StepConfig, RobustOutlierConfig, PreprocConfig
+from pqc.config import BadMeasConfig, TransientConfig, StructureConfig, StepConfig, RobustOutlierConfig, PreprocConfig, OutlierGateConfig
 from pqc.detect.bad_measurements import detect_bad
 from pqc.detect.transients import scan_transients
 from pqc.pipeline import _run_detection_stage
@@ -80,6 +80,7 @@ def test_preproc_reduces_false_ou_flags_and_keeps_true_bad():
         dm_cfg=dm_cfg,
         robust_cfg=robust_cfg,
         preproc_cfg=PreprocConfig(),
+        gate_cfg=OutlierGateConfig(),
     )
 
     preproc_cfg = PreprocConfig(
@@ -98,6 +99,7 @@ def test_preproc_reduces_false_ou_flags_and_keeps_true_bad():
         dm_cfg=dm_cfg,
         robust_cfg=robust_cfg,
         preproc_cfg=preproc_cfg,
+        gate_cfg=OutlierGateConfig(),
     )
 
     assert len(proc) == len(df)
@@ -128,6 +130,7 @@ def test_structure_present_does_not_change_bad_flags():
         dm_cfg=dm_cfg,
         robust_cfg=robust_cfg,
         preproc_cfg=PreprocConfig(),
+        gate_cfg=OutlierGateConfig(),
     )
     test_struct = _run_detection_stage(
         df,
@@ -139,6 +142,7 @@ def test_structure_present_does_not_change_bad_flags():
         dm_cfg=dm_cfg,
         robust_cfg=robust_cfg,
         preproc_cfg=PreprocConfig(),
+        gate_cfg=OutlierGateConfig(),
     )
 
     assert np.array_equal(none_struct["bad_ou"].to_numpy(), test_struct["bad_ou"].to_numpy())
@@ -164,6 +168,7 @@ def test_defaults_match_raw_detectors_when_preproc_disabled():
         dm_cfg=dm_cfg,
         robust_cfg=robust_cfg,
         preproc_cfg=PreprocConfig(),
+        gate_cfg=OutlierGateConfig(),
     )
 
     manual = []

@@ -36,6 +36,7 @@ from pqc.config import (
     StepConfig,
     RobustOutlierConfig,
     PreprocConfig,
+    OutlierGateConfig,
 )
 from pqc.io.timfile import parse_all_timfiles
 from pqc.io.libstempo_loader import load_libstempo
@@ -85,6 +86,7 @@ def _run_detection_stage(
     dm_cfg: StepConfig,
     robust_cfg: RobustOutlierConfig,
     preproc_cfg: PreprocConfig,
+    gate_cfg: OutlierGateConfig,
 ) -> pd.DataFrame:
     out = []
     do_detrend = struct_cfg.mode in ("detrend", "both")
@@ -341,15 +343,47 @@ def _run_detection_stage(
     if "dm_step_id" in df_out.columns:
         df_out["dm_step_id"] = df_out["dm_step_id"].fillna(-1).astype(int)
 
+    gate_inlier = None
+    if gate_cfg.enabled:
+        resid_gate_col = gate_cfg.resid_col
+        if resid_gate_col is None:
+            resid_gate_col = "resid_detr" if "resid_detr" in df_out.columns else "resid_detrended" if "resid_detrended" in df_out.columns else "resid"
+        sigma_gate_col = gate_cfg.sigma_col
+        if sigma_gate_col is None:
+            sigma_gate_col = "sigma_proc" if "sigma_proc" in df_out.columns else "sigma"
+        if resid_gate_col in df_out.columns and sigma_gate_col in df_out.columns:
+            r = pd.to_numeric(df_out[resid_gate_col], errors="coerce").to_numpy(dtype=float)
+            s = pd.to_numeric(df_out[sigma_gate_col], errors="coerce").to_numpy(dtype=float)
+            gate_inlier = np.isfinite(r) & np.isfinite(s) & (np.abs(r) <= float(gate_cfg.sigma_thresh) * s)
+        df_out["outlier_gate_sigma"] = float(gate_cfg.sigma_thresh)
+        df_out["outlier_gate_resid_col"] = resid_gate_col
+        df_out["outlier_gate_sigma_col"] = sigma_gate_col
+        df_out["outlier_gate_inlier"] = False if gate_inlier is None else gate_inlier
+
+    if gate_inlier is not None:
+        if "bad_ou" in df_out.columns:
+            df_out.loc[gate_inlier, "bad_ou"] = False
+        if "bad_mad" in df_out.columns:
+            df_out.loc[gate_inlier, "bad_mad"] = False
+
     df_out["outlier_any"] = False
     df_out["outlier_any"] |= df_out.get("bad_ou", False).fillna(False)
     df_out["outlier_any"] |= df_out.get("bad_mad", False).fillna(False)
     if "transient_id" in df_out.columns:
-        df_out["outlier_any"] |= df_out["transient_id"].fillna(-1).to_numpy() >= 0
+        transient_member = df_out["transient_id"].fillna(-1).to_numpy() >= 0
+        if gate_inlier is not None:
+            transient_member = transient_member & (~gate_inlier)
+        df_out["outlier_any"] |= transient_member
     if "step_id" in df_out.columns:
-        df_out["outlier_any"] |= df_out["step_id"].fillna(-1).to_numpy() >= 0
+        step_member = df_out["step_id"].fillna(-1).to_numpy() >= 0
+        if gate_inlier is not None:
+            step_member = step_member & (~gate_inlier)
+        df_out["outlier_any"] |= step_member
     if "dm_step_id" in df_out.columns:
-        df_out["outlier_any"] |= df_out["dm_step_id"].fillna(-1).to_numpy() >= 0
+        dm_member = df_out["dm_step_id"].fillna(-1).to_numpy() >= 0
+        if gate_inlier is not None:
+            dm_member = dm_member & (~gate_inlier)
+        df_out["outlier_any"] |= dm_member
 
     return df_out
 
@@ -367,6 +401,7 @@ def run_pipeline(
     dm_cfg: StepConfig = StepConfig(),
     robust_cfg: RobustOutlierConfig = RobustOutlierConfig(),
     preproc_cfg: PreprocConfig = PreprocConfig(),
+    gate_cfg: OutlierGateConfig = OutlierGateConfig(),
     drop_unmatched: bool = False,
 ) -> pd.DataFrame:
     """Run the full PTA QC pipeline for a single pulsar.
@@ -390,6 +425,8 @@ def run_pipeline(
         dm_cfg (StepConfig): Configuration for DM-like step offsets (freq-scaled).
         preproc_cfg (PreprocConfig): Configuration for covariate-conditioned
             preprocessing (detrend/rescale) prior to selected detectors.
+        gate_cfg (OutlierGateConfig): Configuration for hard sigma gating of
+            outlier membership.
         drop_unmatched (bool): If True, drop TOAs whose metadata could not be
             matched.
 
@@ -485,4 +522,5 @@ def run_pipeline(
         dm_cfg=dm_cfg,
         robust_cfg=robust_cfg,
         preproc_cfg=preproc_cfg,
+        gate_cfg=gate_cfg,
     )

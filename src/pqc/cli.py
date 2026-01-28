@@ -23,7 +23,7 @@ See Also:
 from __future__ import annotations
 import argparse
 from pqc.pipeline import run_pipeline
-from pqc.config import BadMeasConfig, FeatureConfig, MergeConfig, StructureConfig, TransientConfig, PreprocConfig
+from pqc.config import BadMeasConfig, FeatureConfig, MergeConfig, StructureConfig, TransientConfig, PreprocConfig, OutlierGateConfig
 from pqc.utils.diagnostics import export_structure_table
 
 def _parse_csv_list(val: str | None) -> tuple[str, ...] | None:
@@ -104,6 +104,14 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Minimum points per bin for preprocessing.")
     p.add_argument("--preproc-circular-features", default=None,
                    help="Comma-separated circular features for preprocessing (phase in [0,1)).")
+    p.add_argument("--outlier-gate", action="store_true",
+                   help="Enable hard sigma gate for outlier membership.")
+    p.add_argument("--outlier-gate-sigma", type=float, default=3.0,
+                   help="Sigma threshold for outlier gate (default: 3).")
+    p.add_argument("--outlier-gate-resid-col", default=None,
+                   help="Residual column to gate on (default: auto).")
+    p.add_argument("--outlier-gate-sigma-col", default=None,
+                   help="Sigma column to gate on (default: auto).")
 
     return p
 
@@ -175,6 +183,12 @@ def main() -> None:
         min_per_bin=args.preproc_min_per_bin,
         circular_features=_parse_csv_list(args.preproc_circular_features) or preproc_defaults.circular_features,
     )
+    gate_cfg = OutlierGateConfig(
+        enabled=bool(args.outlier_gate),
+        sigma_thresh=float(args.outlier_gate_sigma),
+        resid_col=args.outlier_gate_resid_col,
+        sigma_col=args.outlier_gate_sigma_col,
+    )
 
     df = run_pipeline(
         args.par,
@@ -185,6 +199,7 @@ def main() -> None:
         feature_cfg=feature_cfg,
         struct_cfg=struct_cfg,
         preproc_cfg=preproc_cfg,
+        gate_cfg=gate_cfg,
         drop_unmatched=args.drop_unmatched,
     )
 
