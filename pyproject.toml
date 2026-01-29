@@ -15,6 +15,10 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest"]
+docs = [
+    "sphinx",
+    "sphinx-autobuild",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

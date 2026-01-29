@@ -243,6 +243,16 @@ def _run_detection_stage(
         proc_sigma_col=proc_sigma_col,
     )
 
+    df_work["ou_used_resid_col"] = ou_resid
+    df_work["ou_used_sigma_col"] = ou_sigma
+    df_work["transient_used_resid_col"] = tr_resid
+    df_work["transient_used_sigma_col"] = tr_sigma
+    df_work["step_used_resid_col"] = step_resid
+    df_work["step_used_sigma_col"] = step_sigma
+    df_work["dmstep_used_resid_col"] = dm_resid
+    df_work["dmstep_used_sigma_col"] = dm_sigma
+    df_work["mad_used_resid_col"] = mad_resid
+
     if step_cfg.enabled and step_cfg.scope in ("global", "both"):
         df_work = detect_step(
             df_work,
@@ -251,6 +261,9 @@ def _run_detection_stage(
             sigma_col=step_sigma,
             min_points=step_cfg.min_points,
             delta_chi2_thresh=step_cfg.delta_chi2_thresh,
+            member_eta=step_cfg.member_eta,
+            member_tmax_days=step_cfg.member_tmax_days,
+            instrument=bool(getattr(step_cfg, "instrument", False)),
             prefix="step_global",
         )
     if dm_cfg.enabled and dm_cfg.scope in ("global", "both"):
@@ -262,6 +275,9 @@ def _run_detection_stage(
             freq_col="freq",
             min_points=dm_cfg.min_points,
             delta_chi2_thresh=dm_cfg.delta_chi2_thresh,
+            member_eta=dm_cfg.member_eta,
+            member_tmax_days=dm_cfg.member_tmax_days,
+            instrument=bool(getattr(dm_cfg, "instrument", False)),
             prefix="dm_step_global",
         )
 
@@ -292,6 +308,8 @@ def _run_detection_stage(
             resid_col=tr_resid,
             sigma_col=tr_sigma,
             exclude_bad_col="bad",
+            member_eta=tr_cfg.member_eta,
+            instrument=bool(getattr(tr_cfg, "instrument", False)),
         )
         if step_cfg.enabled and step_cfg.scope in ("backend", "both"):
             sub2 = detect_step(
@@ -301,6 +319,9 @@ def _run_detection_stage(
                 sigma_col=step_sigma,
                 min_points=step_cfg.min_points,
                 delta_chi2_thresh=step_cfg.delta_chi2_thresh,
+                member_eta=step_cfg.member_eta,
+                member_tmax_days=step_cfg.member_tmax_days,
+                instrument=bool(getattr(step_cfg, "instrument", False)),
                 prefix="step",
             )
         if dm_cfg.enabled and dm_cfg.scope in ("backend", "both"):
@@ -312,6 +333,9 @@ def _run_detection_stage(
                 freq_col="freq",
                 min_points=dm_cfg.min_points,
                 delta_chi2_thresh=dm_cfg.delta_chi2_thresh,
+                member_eta=dm_cfg.member_eta,
+                member_tmax_days=dm_cfg.member_tmax_days,
+                instrument=bool(getattr(dm_cfg, "instrument", False)),
                 prefix="dm_step",
             )
         if robust_cfg.enabled and robust_cfg.scope in ("backend", "both"):
@@ -340,50 +364,68 @@ def _run_detection_stage(
 
     if "step_id" in df_out.columns:
         df_out["step_id"] = df_out["step_id"].fillna(-1).astype(int)
+    else:
+        df_out["step_id"] = -1
     if "dm_step_id" in df_out.columns:
         df_out["dm_step_id"] = df_out["dm_step_id"].fillna(-1).astype(int)
+    else:
+        df_out["dm_step_id"] = -1
 
     gate_inlier = None
+    gate_valid = None
     if gate_cfg.enabled:
         resid_gate_col = gate_cfg.resid_col
         if resid_gate_col is None:
-            resid_gate_col = "resid_detr" if "resid_detr" in df_out.columns else "resid_detrended" if "resid_detrended" in df_out.columns else "resid"
+            resid_gate_col = ou_resid
         sigma_gate_col = gate_cfg.sigma_col
         if sigma_gate_col is None:
-            sigma_gate_col = "sigma_proc" if "sigma_proc" in df_out.columns else "sigma"
+            sigma_gate_col = ou_sigma
         if resid_gate_col in df_out.columns and sigma_gate_col in df_out.columns:
             r = pd.to_numeric(df_out[resid_gate_col], errors="coerce").to_numpy(dtype=float)
             s = pd.to_numeric(df_out[sigma_gate_col], errors="coerce").to_numpy(dtype=float)
-            gate_inlier = np.isfinite(r) & np.isfinite(s) & (np.abs(r) <= float(gate_cfg.sigma_thresh) * s)
+            gate_valid = np.isfinite(r) & np.isfinite(s)
+            gate_inlier = gate_valid & (np.abs(r) <= float(gate_cfg.sigma_thresh) * s)
         df_out["outlier_gate_sigma"] = float(gate_cfg.sigma_thresh)
         df_out["outlier_gate_resid_col"] = resid_gate_col
         df_out["outlier_gate_sigma_col"] = sigma_gate_col
         df_out["outlier_gate_inlier"] = False if gate_inlier is None else gate_inlier
+        if gate_cfg.resid_col is None and gate_cfg.sigma_col is None:
+            if (mad_resid != resid_gate_col):
+                warn(f"Outlier gate uses {resid_gate_col}/{sigma_gate_col} but MAD uses {mad_resid}/sigma; set gate columns explicitly to align.")
 
+    df_out["bad_hard"] = False
     if gate_inlier is not None:
+        if gate_valid is None:
+            gate_valid = np.isfinite(df_out[resid_gate_col]) & np.isfinite(df_out[sigma_gate_col])
+        df_out["bad_hard"] = gate_valid & (~gate_inlier)
         if "bad_ou" in df_out.columns:
             df_out.loc[gate_inlier, "bad_ou"] = False
         if "bad_mad" in df_out.columns:
             df_out.loc[gate_inlier, "bad_mad"] = False
+        for col in ("robust_outlier", "robust_global_outlier"):
+            if col in df_out.columns:
+                df_out.loc[gate_inlier, col] = False
+
+    df_out["bad_point"] = False
+    df_out["bad_point"] |= df_out.get("bad_ou", False).fillna(False)
+    df_out["bad_point"] |= df_out.get("bad_mad", False).fillna(False)
+    if "robust_outlier" in df_out.columns:
+        df_out["bad_point"] |= df_out["robust_outlier"].fillna(False)
+    if "bad_hard" in df_out.columns:
+        df_out["bad_point"] |= df_out["bad_hard"].fillna(False)
+
+    df_out["event_member"] = False
+    if "transient_id" in df_out.columns:
+        df_out["event_member"] |= df_out["transient_id"].fillna(-1).to_numpy() >= 0
+    if "step_id" in df_out.columns:
+        df_out["event_member"] |= df_out["step_id"].fillna(-1).to_numpy() >= 0
+    if "dm_step_id" in df_out.columns:
+        df_out["event_member"] |= df_out["dm_step_id"].fillna(-1).to_numpy() >= 0
+    df_out["event_member"] &= ~df_out["bad_point"].fillna(False)
 
     df_out["outlier_any"] = False
-    df_out["outlier_any"] |= df_out.get("bad_ou", False).fillna(False)
-    df_out["outlier_any"] |= df_out.get("bad_mad", False).fillna(False)
-    if "transient_id" in df_out.columns:
-        transient_member = df_out["transient_id"].fillna(-1).to_numpy() >= 0
-        if gate_inlier is not None:
-            transient_member = transient_member & (~gate_inlier)
-        df_out["outlier_any"] |= transient_member
-    if "step_id" in df_out.columns:
-        step_member = df_out["step_id"].fillna(-1).to_numpy() >= 0
-        if gate_inlier is not None:
-            step_member = step_member & (~gate_inlier)
-        df_out["outlier_any"] |= step_member
-    if "dm_step_id" in df_out.columns:
-        dm_member = df_out["dm_step_id"].fillna(-1).to_numpy() >= 0
-        if gate_inlier is not None:
-            dm_member = dm_member & (~gate_inlier)
-        df_out["outlier_any"] |= dm_member
+    df_out["outlier_any"] |= df_out["bad_point"]
+    df_out["outlier_any"] |= df_out["event_member"]
 
     return df_out
 
@@ -433,8 +475,9 @@ def run_pipeline(
     Returns:
         pandas.DataFrame: Timing, metadata, and QC annotations. The output
         includes the merged timfile metadata plus ``bad``, ``bad_day``, ``z``,
-        ``bad_ou``, ``bad_mad``, ``transient_id``, ``step_id``, ``dm_step_id``,
-        and ``outlier_any``. If enabled, feature columns such as
+        ``bad_ou``, ``bad_mad``, ``bad_point``, ``event_member``,
+        ``transient_id``, ``step_id``, ``dm_step_id``, and ``outlier_any``
+        (deprecated for plotting/summary). If enabled, feature columns such as
         ``orbital_phase`` and ``solar_elongation_deg`` are added, plus
         structure-test summaries (``structure_*`` and
         ``structure_present_<feature>``) and optional preprocessing columns

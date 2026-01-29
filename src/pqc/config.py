@@ -127,6 +127,8 @@ class TransientConfig:
     min_points: int = 6
     delta_chi2_thresh: float = 25.0
     suppress_overlap: bool = True
+    member_eta: float = 1.0
+    instrument: bool = False
 
 
 @dataclass(frozen=True)
@@ -147,6 +149,9 @@ class StepConfig:
     min_points: int = 20
     delta_chi2_thresh: float = 25.0
     scope: str = "both"
+    member_eta: float = 1.0
+    member_tmax_days: float | None = 3650.0
+    instrument: bool = False
 
 @dataclass(frozen=True)
 class RobustOutlierConfig:

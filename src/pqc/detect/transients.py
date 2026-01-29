@@ -27,6 +27,8 @@ def scan_transients(
     min_points: int = 6,
     delta_chi2_thresh: float = 25.0,
     suppress_overlap: bool = True,
+    member_eta: float = 1.0,
+    instrument: bool = False,
 ) -> pd.DataFrame:
     """Scan for transient exponential recoveries and annotate affected rows.
 
@@ -124,9 +126,39 @@ def scan_transients(
         assigned |= in_win
 
     for k, (t0, A, delta, in_win) in enumerate(kept):
-        d.loc[in_win, "transient_id"] = k
-        d.loc[in_win, "transient_amp"] = A
-        d.loc[in_win, "transient_t0"] = t0
-        d.loc[in_win, "transient_delta_chi2"] = delta
+        tt = t[in_win] - t0
+        f = np.exp(-tt / tau_rec_days)
+        model = A * f
+        z_pt = np.full_like(t, np.nan, dtype=float)
+        sig = s[in_win]
+        good = np.isfinite(sig) & (sig > 0)
+        z_pt[in_win] = np.nan
+        if np.any(good):
+            z_pt[in_win] = np.where(good, np.abs(model) / sig, np.nan)
+        member = in_win.copy()
+        if np.isfinite(member_eta):
+            member &= (z_pt >= float(member_eta))
+        d.loc[member, "transient_id"] = k
+        d.loc[member, "transient_amp"] = A
+        d.loc[member, "transient_t0"] = t0
+        d.loc[member, "transient_delta_chi2"] = delta
+
+        if instrument:
+            zf = z_pt[np.isfinite(z_pt)]
+            if len(zf):
+                info_str = (
+                    f"transient_id={k} t0={t0:.6f} A={A:.3g} "
+                    f"n_assign={int(np.count_nonzero(member))} "
+                    f"z_pt[min/med/max]={np.nanmin(zf):.3g}/{np.nanmedian(zf):.3g}/{np.nanmax(zf):.3g} "
+                    f"frac<1={float(np.mean(zf < 1.0)):.3g} frac<2={float(np.mean(zf < 2.0)):.3g}"
+                )
+                try:
+                    from pqc.utils.logging import info
+                    info(info_str)
+                    if np.mean(zf < 1.0) > 0.5:
+                        from pqc.utils.logging import warn
+                        warn("Transient membership has >50% members with z_pt<1.0; check membership criteria.")
+                except Exception:
+                    pass
 
     return d

@@ -23,7 +23,7 @@ See Also:
 from __future__ import annotations
 import argparse
 from pqc.pipeline import run_pipeline
-from pqc.config import BadMeasConfig, FeatureConfig, MergeConfig, StructureConfig, TransientConfig, PreprocConfig, OutlierGateConfig
+from pqc.config import BadMeasConfig, FeatureConfig, MergeConfig, StructureConfig, TransientConfig, StepConfig, PreprocConfig, OutlierGateConfig
 from pqc.utils.diagnostics import export_structure_table
 
 def _parse_csv_list(val: str | None) -> tuple[str, ...] | None:
@@ -64,6 +64,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--window-mult", type=float, default=5.0, help="Window length = window_mult * tau_rec." )
     p.add_argument("--min-points", type=int, default=6, help="Minimum points in transient window." )
     p.add_argument("--delta-chi2", type=float, default=25.0, help="Delta-chi2 threshold for transient detection." )
+    p.add_argument("--event-instrument", action="store_true",
+                   help="Print per-event membership diagnostics (z_pt stats).")
 
     p.add_argument("--no-orbital-phase", action="store_true", help="Disable orbital phase feature extraction.")
     p.add_argument("--no-solar-elongation", action="store_true", help="Disable solar elongation feature extraction.")
@@ -146,7 +148,10 @@ def main() -> None:
         min_points=args.min_points,
         delta_chi2_thresh=args.delta_chi2,
         suppress_overlap=True,
+        instrument=bool(args.event_instrument),
     )
+    step_cfg = StepConfig(instrument=bool(args.event_instrument))
+    dm_cfg = StepConfig(instrument=bool(args.event_instrument))
     defaults = StructureConfig()
     detrend_feats = _parse_csv_list(args.structure_detrend_features) or defaults.detrend_features
     test_feats = _parse_csv_list(args.structure_test_features) or defaults.structure_features
@@ -198,6 +203,8 @@ def main() -> None:
         merge_cfg=merge_cfg,
         feature_cfg=feature_cfg,
         struct_cfg=struct_cfg,
+        step_cfg=step_cfg,
+        dm_cfg=dm_cfg,
         preproc_cfg=preproc_cfg,
         gate_cfg=gate_cfg,
         drop_unmatched=args.drop_unmatched,

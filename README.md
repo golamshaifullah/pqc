@@ -121,6 +121,12 @@ pqc --par /path/to/pulsar.par --out out.csv \
   --preproc-circular-features orbital_phase
 ```
 
+## Output columns (QC semantics)
+
+- `bad_point`: boolean; `bad_ou OR bad_mad OR robust_outlier OR bad_hard`
+- `event_member`: boolean; `transient_id != -1 OR step_id != -1 OR dm_step_id != -1`
+- `outlier_any`: kept for backward compatibility; do not use for plots/summaries
+
 ## Documentation
 
 - Overview and examples: this README

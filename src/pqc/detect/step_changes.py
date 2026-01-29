@@ -47,6 +47,9 @@ def detect_step(
     sigma_col: str = "sigma",
     min_points: int = 20,
     delta_chi2_thresh: float = 25.0,
+    member_eta: float = 1.0,
+    member_tmax_days: float | None = 3650.0,
+    instrument: bool = False,
     prefix: str = "step",
 ) -> pd.DataFrame:
     """Detect a single step-like offset and annotate rows.
@@ -78,10 +81,40 @@ def detect_step(
         return out
 
     t0 = float(best["t0"])
-    out.loc[out[mjd_col] >= t0, f"{prefix}_id"] = 0
+    amp = float(best["amp"])
+    t = out[mjd_col].to_numpy(dtype=float)
+    s = out[sigma_col].to_numpy(dtype=float)
+    member = np.isfinite(t) & (t >= t0)
+    if member_tmax_days is not None:
+        member &= t <= t0 + float(member_tmax_days)
+    z_pt = np.full_like(t, np.nan, dtype=float)
+    good = member & np.isfinite(s) & (s > 0)
+    z_pt[good] = np.abs(amp) / s[good]
+    if np.isfinite(member_eta):
+        member &= (z_pt >= float(member_eta))
+
+    out.loc[member, f"{prefix}_id"] = 0
     out[f"{prefix}_t0"] = t0
-    out[f"{prefix}_amp"] = float(best["amp"])
+    out[f"{prefix}_amp"] = amp
     out[f"{prefix}_delta_chi2"] = float(best["delta_chi2"])
+
+    if instrument:
+        zf = z_pt[np.isfinite(z_pt)]
+        if len(zf):
+            info_str = (
+                f"{prefix}_id=0 t0={t0:.6f} amp={amp:.3g} "
+                f"n_assign={int(np.count_nonzero(member))} "
+                f"z_pt[min/med/max]={np.nanmin(zf):.3g}/{np.nanmedian(zf):.3g}/{np.nanmax(zf):.3g} "
+                f"frac<1={float(np.mean(zf < 1.0)):.3g} frac<2={float(np.mean(zf < 2.0)):.3g}"
+            )
+            try:
+                from pqc.utils.logging import info
+                info(info_str)
+                if np.mean(zf < 1.0) > 0.5:
+                    from pqc.utils.logging import warn
+                    warn(f"{prefix} membership has >50% members with z_pt<1.0; check membership criteria.")
+            except Exception:
+                pass
     return out
 
 
@@ -94,6 +127,9 @@ def detect_dm_step(
     freq_col: str = "freq",
     min_points: int = 20,
     delta_chi2_thresh: float = 25.0,
+    member_eta: float = 1.0,
+    member_tmax_days: float | None = 3650.0,
+    instrument: bool = False,
     prefix: str = "dm_step",
 ) -> pd.DataFrame:
     """Detect step-like offsets consistent with DM events.
@@ -131,8 +167,41 @@ def detect_dm_step(
         return out
 
     t0 = float(best["t0"])
-    out.loc[out[mjd_col] >= t0, f"{prefix}_id"] = 0
+    amp = float(best["amp"])
+    t_all = out[mjd_col].to_numpy(dtype=float)
+    s_all = out[sigma_col].to_numpy(dtype=float)
+    freq_all = pd.to_numeric(out[freq_col], errors="coerce").to_numpy(dtype=float)
+    member = np.isfinite(t_all) & (t_all >= t0)
+    if member_tmax_days is not None:
+        member &= t_all <= t0 + float(member_tmax_days)
+    z_pt = np.full_like(t_all, np.nan, dtype=float)
+    good = member & np.isfinite(s_all) & (s_all > 0) & np.isfinite(freq_all) & (freq_all != 0)
+    model = np.full_like(t_all, np.nan, dtype=float)
+    model[good] = amp / (freq_all[good] ** 2)
+    z_pt[good] = np.abs(model[good]) / s_all[good]
+    if np.isfinite(member_eta):
+        member &= (z_pt >= float(member_eta))
+
+    out.loc[member, f"{prefix}_id"] = 0
     out[f"{prefix}_t0"] = t0
-    out[f"{prefix}_amp"] = float(best["amp"])
+    out[f"{prefix}_amp"] = amp
     out[f"{prefix}_delta_chi2"] = float(best["delta_chi2"])
+
+    if instrument:
+        zf = z_pt[np.isfinite(z_pt)]
+        if len(zf):
+            info_str = (
+                f"{prefix}_id=0 t0={t0:.6f} amp={amp:.3g} "
+                f"n_assign={int(np.count_nonzero(member))} "
+                f"z_pt[min/med/max]={np.nanmin(zf):.3g}/{np.nanmedian(zf):.3g}/{np.nanmax(zf):.3g} "
+                f"frac<1={float(np.mean(zf < 1.0)):.3g} frac<2={float(np.mean(zf < 2.0)):.3g}"
+            )
+            try:
+                from pqc.utils.logging import info
+                info(info_str)
+                if np.mean(zf < 1.0) > 0.5:
+                    from pqc.utils.logging import warn
+                    warn(f"{prefix} membership has >50% members with z_pt<1.0; check membership criteria.")
+            except Exception:
+                pass
     return out

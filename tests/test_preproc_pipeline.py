@@ -65,12 +65,10 @@ def _make_deterministic_df() -> tuple[pd.DataFrame, int]:
     mjd = 59000.0 + np.arange(n, dtype=float)
     day = np.floor(mjd).astype(int)
 
-    orbital_phase = np.array([0.05, 0.10, 0.12, 0.30, 0.35, 0.40, 0.45, 0.60, 0.62, 0.65, 0.80, 0.85])
+    orbital_phase = np.array([0.05, 0.10, 0.12, 0.30, 0.32, 0.33, 0.34, 0.60, 0.62, 0.65, 0.80, 0.85])
     sigma = np.ones(n, dtype=float)
-    resid = np.zeros(n, dtype=float)
-    resid[3:7] = 10.0  # feature-driven false outliers (bin with >=3 points)
+    resid = np.array([0.50, 0.60, 0.40, 10.50, 10.60, 10.40, 10.55, 0.45, 0.52, 0.48, 30.50, 0.58], dtype=float)
     bad_idx = 10
-    resid[bad_idx] = 30.0  # true bad point in sparse bin
 
     df = pd.DataFrame(
         {
@@ -228,3 +226,73 @@ def test_defaults_match_raw_detectors_when_preproc_disabled():
     assert np.array_equal(out["bad"].to_numpy(), manual_df["bad"].to_numpy())
     assert np.array_equal(out["bad_day"].to_numpy(), manual_df["bad_day"].to_numpy())
     assert np.array_equal(out["transient_id"].to_numpy(), manual_df["transient_id"].to_numpy())
+
+
+def test_detector_provenance_columns_change_with_preproc():
+    df, _ = _make_synth_df()
+    bad_cfg = BadMeasConfig(tau_corr_days=0.3, fdr_q=0.2, mark_only_worst_per_day=True)
+    tr_cfg = TransientConfig(tau_rec_days=5.0, delta_chi2_thresh=12.0, min_points=6)
+    struct_cfg = StructureConfig(mode="none")
+    step_cfg = StepConfig(enabled=False)
+    dm_cfg = StepConfig(enabled=False)
+    robust_cfg = RobustOutlierConfig(enabled=False)
+
+    preproc_cfg = PreprocConfig(
+        detrend_features=("orbital_phase",),
+        rescale_feature=None,
+        condition_on=("group",),
+        use_preproc_for=("ou", "transient", "mad"),
+        nbins=12,
+        min_per_bin=3,
+    )
+
+    out = _run_detection_stage(
+        df,
+        backend_col="group",
+        bad_cfg=bad_cfg,
+        tr_cfg=tr_cfg,
+        struct_cfg=struct_cfg,
+        step_cfg=step_cfg,
+        dm_cfg=dm_cfg,
+        robust_cfg=robust_cfg,
+        preproc_cfg=preproc_cfg,
+        gate_cfg=OutlierGateConfig(),
+    )
+
+    assert out["ou_used_resid_col"].iloc[0] == "resid_detr"
+    assert out["transient_used_resid_col"].iloc[0] == "resid_detr"
+    assert out["mad_used_resid_col"].iloc[0] == "resid_detr"
+
+
+def test_transient_detected_with_preproc():
+    df, _ = _make_synth_df()
+    bad_cfg = BadMeasConfig(tau_corr_days=0.3, fdr_q=0.2, mark_only_worst_per_day=True)
+    tr_cfg = TransientConfig(tau_rec_days=5.0, delta_chi2_thresh=5.0, min_points=6)
+    struct_cfg = StructureConfig(mode="none")
+    step_cfg = StepConfig(enabled=False)
+    dm_cfg = StepConfig(enabled=False)
+    robust_cfg = RobustOutlierConfig(enabled=False)
+
+    preproc_cfg = PreprocConfig(
+        detrend_features=("orbital_phase",),
+        rescale_feature="solar_elongation_deg",
+        condition_on=("group",),
+        use_preproc_for=("transient",),
+        nbins=12,
+        min_per_bin=5,
+    )
+
+    out = _run_detection_stage(
+        df,
+        backend_col="group",
+        bad_cfg=bad_cfg,
+        tr_cfg=tr_cfg,
+        struct_cfg=struct_cfg,
+        step_cfg=step_cfg,
+        dm_cfg=dm_cfg,
+        robust_cfg=robust_cfg,
+        preproc_cfg=preproc_cfg,
+        gate_cfg=OutlierGateConfig(),
+    )
+
+    assert (out["transient_id"] >= 0).any()
