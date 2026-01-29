@@ -124,7 +124,9 @@ pqc --par /path/to/pulsar.par --out out.csv \
 ## Output columns (QC semantics)
 
 - `bad_point`: boolean; `bad_ou OR bad_mad OR robust_outlier OR bad_hard`
-- `event_member`: boolean; `transient_id != -1 OR step_id != -1 OR dm_step_id != -1`
+- `event_member`: boolean; `transient_id != -1 OR step_informative OR dm_step_informative`
+- `step_applicable`/`step_informative`: booleans for step membership (time-window vs SNR)
+- `dm_step_applicable`/`dm_step_informative`: booleans for DM-step membership (time-window vs SNR)
 - `outlier_any`: kept for backward compatibility; do not use for plots/summaries
 
 ## Documentation

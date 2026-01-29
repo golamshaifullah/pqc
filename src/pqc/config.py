@@ -129,6 +129,7 @@ class TransientConfig:
     suppress_overlap: bool = True
     member_eta: float = 1.0
     instrument: bool = False
+    scope: str = "backend"  # backend/global/both
 
 
 @dataclass(frozen=True)

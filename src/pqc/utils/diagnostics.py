@@ -87,8 +87,10 @@ def summarize_results(df: pd.DataFrame, backend_col: str = "group") -> None:
     if backend_col in df.columns and len(df):
         per = df.groupby(backend_col, dropna=False)
         base = per.size()
-        def _rate(col: str) -> pd.Series:
+        def _rate_id(col: str) -> pd.Series:
             return per[col].apply(lambda s: float((s >= 0).mean()))
+        def _rate_bool(col: str) -> pd.Series:
+            return per[col].apply(lambda s: float(s.fillna(False).mean()))
 
         bad_ou_rate = pd.Series(0.0, index=base.index)
         if "bad_ou" in df.columns:
@@ -97,9 +99,15 @@ def summarize_results(df: pd.DataFrame, backend_col: str = "group") -> None:
             bad_ou_rate = per["bad"].mean()
         bad_mad_rate = per["bad_mad"].mean() if "bad_mad" in df.columns else pd.Series(0.0, index=base.index)
         bad_point_rate = per["bad_point"].mean() if "bad_point" in df.columns else pd.Series(0.0, index=base.index)
-        transient_rate = _rate("transient_id") if "transient_id" in df.columns else pd.Series(0.0, index=base.index)
-        step_rate = _rate("step_id") if "step_id" in df.columns else pd.Series(0.0, index=base.index)
-        dm_step_rate = _rate("dm_step_id") if "dm_step_id" in df.columns else pd.Series(0.0, index=base.index)
+        transient_rate = _rate_id("transient_id") if "transient_id" in df.columns else pd.Series(0.0, index=base.index)
+        if "step_informative" in df.columns:
+            step_rate = _rate_bool("step_informative")
+        else:
+            step_rate = _rate_id("step_id") if "step_id" in df.columns else pd.Series(0.0, index=base.index)
+        if "dm_step_informative" in df.columns:
+            dm_step_rate = _rate_bool("dm_step_informative")
+        else:
+            dm_step_rate = _rate_id("dm_step_id") if "dm_step_id" in df.columns else pd.Series(0.0, index=base.index)
         event_rate = per["event_member"].mean() if "event_member" in df.columns else pd.Series(0.0, index=base.index)
         summary = pd.DataFrame(
             {
@@ -206,3 +214,47 @@ def export_structure_table(
             rows.append(row)
 
     return pd.DataFrame(rows)
+
+
+def event_membership_mask(df: pd.DataFrame, *, use_applicable: bool = False) -> pd.Series:
+    """Return a boolean mask for event membership for plotting.
+
+    Args:
+        df (pandas.DataFrame): QC DataFrame containing event columns.
+        use_applicable (bool): If True, include step/dm-step applicable rows
+            instead of informative rows.
+
+    Returns:
+        pandas.Series: Boolean mask aligned to ``df.index``.
+    """
+    if df.empty:
+        return pd.Series(dtype=bool)
+
+    mask = pd.Series(False, index=df.index)
+    if "transient_id" in df.columns:
+        mask |= df["transient_id"].fillna(-1) >= 0
+    if "transient_global_id" in df.columns:
+        mask |= df["transient_global_id"].fillna(-1) >= 0
+
+    if use_applicable:
+        if "step_applicable" in df.columns:
+            mask |= df["step_applicable"].fillna(False)
+        elif "step_id" in df.columns:
+            mask |= df["step_id"].fillna(-1) >= 0
+        if "dm_step_applicable" in df.columns:
+            mask |= df["dm_step_applicable"].fillna(False)
+        elif "dm_step_id" in df.columns:
+            mask |= df["dm_step_id"].fillna(-1) >= 0
+    else:
+        if "step_informative" in df.columns:
+            mask |= df["step_informative"].fillna(False)
+        elif "step_id" in df.columns:
+            mask |= df["step_id"].fillna(-1) >= 0
+        if "dm_step_informative" in df.columns:
+            mask |= df["dm_step_informative"].fillna(False)
+        elif "dm_step_id" in df.columns:
+            mask |= df["dm_step_id"].fillna(-1) >= 0
+
+    if "bad_point" in df.columns:
+        mask &= ~df["bad_point"].fillna(False)
+    return mask

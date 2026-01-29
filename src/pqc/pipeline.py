@@ -88,6 +88,192 @@ def _run_detection_stage(
     preproc_cfg: PreprocConfig,
     gate_cfg: OutlierGateConfig,
 ) -> pd.DataFrame:
+    def _apply_grouped_global_step(
+        frame: pd.DataFrame,
+        *,
+        prefix: str,
+        resid_col: str,
+        sigma_col: str,
+        group_col: str,
+        member_eta: float,
+        member_tmax_days: float | None,
+        min_points: int,
+        freq_col: str | None = None,
+    ) -> pd.DataFrame:
+        if f"{prefix}_t0" not in frame.columns or group_col not in frame.columns:
+            return frame
+        t0_vals = pd.to_numeric(frame[f"{prefix}_t0"], errors="coerce")
+        if not np.isfinite(t0_vals).any():
+            return frame
+        t0 = float(t0_vals.dropna().iloc[0])
+        t_all = pd.to_numeric(frame["mjd"], errors="coerce").to_numpy(dtype=float)
+        t_end = np.nanmax(t_all) if member_tmax_days is None else (t0 + float(member_tmax_days))
+
+        for g, sub in frame.groupby(group_col):
+            idx = sub.index
+            t = pd.to_numeric(sub["mjd"], errors="coerce").to_numpy(dtype=float)
+            r = pd.to_numeric(sub[resid_col], errors="coerce").to_numpy(dtype=float)
+            s = pd.to_numeric(sub[sigma_col], errors="coerce").to_numpy(dtype=float)
+
+            pre = np.isfinite(t) & (t < t0) & np.isfinite(r) & np.isfinite(s) & (s > 0)
+            post = np.isfinite(t) & (t >= t0) & (t <= t_end) & np.isfinite(r) & np.isfinite(s) & (s > 0)
+            if freq_col is not None and freq_col in sub.columns:
+                f = pd.to_numeric(sub[freq_col], errors="coerce").to_numpy(dtype=float)
+                goodf = np.isfinite(f) & (f != 0)
+                pre &= goodf
+                post &= goodf
+                y_pre = r[pre] * (f[pre] ** 2)
+                y_post = r[post] * (f[post] ** 2)
+                s_pre = s[pre] * (f[pre] ** 2)
+                s_post = s[post] * (f[post] ** 2)
+            else:
+                y_pre, y_post = r[pre], r[post]
+                s_pre, s_post = s[pre], s[post]
+
+            if np.count_nonzero(pre) < min_points or np.count_nonzero(post) < min_points:
+                frame.loc[idx, f"{prefix}_id"] = -1
+                frame.loc[idx, f"{prefix}_applicable"] = False
+                frame.loc[idx, f"{prefix}_informative"] = False
+                frame.loc[idx, f"{prefix}_amp"] = np.nan
+                frame.loc[idx, f"{prefix}_n_applicable"] = 0
+                frame.loc[idx, f"{prefix}_n_informative"] = 0
+                frame.loc[idx, f"{prefix}_n_members"] = 0
+                frame.loc[idx, f"{prefix}_frac_informative_z_lt1"] = 0.0
+                frame.loc[idx, f"{prefix}_frac_z_lt1"] = 0.0
+                frame.loc[idx, f"{prefix}_z_min"] = np.nan
+                frame.loc[idx, f"{prefix}_z_med"] = np.nan
+                frame.loc[idx, f"{prefix}_z_max"] = np.nan
+                continue
+
+            w_pre = 1.0 / (s_pre ** 2)
+            w_post = 1.0 / (s_post ** 2)
+            mu_pre = np.sum(w_pre * y_pre) / np.sum(w_pre)
+            mu_post = np.sum(w_post * y_post) / np.sum(w_post)
+            amp = float(mu_post - mu_pre)
+
+            applicable = np.isfinite(t) & (t >= t0) & (t <= t_end)
+            z_pt = np.full_like(t, np.nan, dtype=float)
+            if freq_col is not None and freq_col in sub.columns:
+                f = pd.to_numeric(sub[freq_col], errors="coerce").to_numpy(dtype=float)
+                good = applicable & np.isfinite(s) & (s > 0) & np.isfinite(f) & (f != 0)
+                effect = np.zeros_like(t, dtype=float)
+                effect[good] = np.abs(amp) / (f[good] ** 2)
+            else:
+                good = applicable & np.isfinite(s) & (s > 0)
+                effect = np.zeros_like(t, dtype=float)
+                effect[good] = np.abs(amp)
+            z_pt[good] = effect[good] / s[good]
+            informative = applicable.copy()
+            if np.isfinite(member_eta):
+                informative &= (z_pt > float(member_eta))
+
+            frame.loc[idx, f"{prefix}_id"] = -1
+            frame.loc[idx[applicable], f"{prefix}_id"] = 0
+            frame.loc[idx, f"{prefix}_applicable"] = applicable
+            frame.loc[idx, f"{prefix}_informative"] = informative
+            frame.loc[idx, f"{prefix}_amp"] = amp
+            z_inf = z_pt[informative]
+            frame.loc[idx, f"{prefix}_n_applicable"] = int(np.count_nonzero(applicable))
+            frame.loc[idx, f"{prefix}_n_informative"] = int(np.count_nonzero(informative))
+            frame.loc[idx, f"{prefix}_n_members"] = int(np.count_nonzero(informative))
+            if len(z_inf):
+                frame.loc[idx, f"{prefix}_frac_informative_z_lt1"] = float(np.mean(z_inf < 1.0))
+                frame.loc[idx, f"{prefix}_frac_z_lt1"] = float(np.mean(z_inf < 1.0))
+                frame.loc[idx, f"{prefix}_z_min"] = float(np.nanmin(z_inf))
+                frame.loc[idx, f"{prefix}_z_med"] = float(np.nanmedian(z_inf))
+                frame.loc[idx, f"{prefix}_z_max"] = float(np.nanmax(z_inf))
+            else:
+                frame.loc[idx, f"{prefix}_frac_informative_z_lt1"] = 0.0
+                frame.loc[idx, f"{prefix}_frac_z_lt1"] = 0.0
+                frame.loc[idx, f"{prefix}_z_min"] = np.nan
+                frame.loc[idx, f"{prefix}_z_med"] = np.nan
+                frame.loc[idx, f"{prefix}_z_max"] = np.nan
+
+        return frame
+
+    def _apply_grouped_global_transients(
+        frame: pd.DataFrame,
+        *,
+        resid_col: str,
+        sigma_col: str,
+        group_col: str,
+        tau_rec_days: float,
+        window_mult: float,
+        member_eta: float,
+    ) -> pd.DataFrame:
+        if "transient_global_id" not in frame.columns or group_col not in frame.columns:
+            return frame
+
+        events = frame.loc[frame["transient_global_id"] >= 0, ["transient_global_id", "transient_global_t0", "transient_global_delta_chi2"]]
+        if events.empty:
+            return frame
+
+        events = events.dropna(subset=["transient_global_id", "transient_global_t0"]).drop_duplicates("transient_global_id")
+        if events.empty:
+            return frame
+
+        frame["transient_global_id"] = -1
+        frame["transient_global_amp"] = np.nan
+        frame["transient_global_t0"] = np.nan
+        frame["transient_global_delta_chi2"] = np.nan
+        frame["transient_global_n_members"] = 0
+        frame["transient_global_frac_z_lt1"] = 0.0
+        frame["transient_global_z_min"] = np.nan
+        frame["transient_global_z_med"] = np.nan
+        frame["transient_global_z_max"] = np.nan
+
+        for _, ev in events.iterrows():
+            tid = int(ev["transient_global_id"])
+            t0 = float(ev["transient_global_t0"])
+            delta = float(ev["transient_global_delta_chi2"]) if np.isfinite(ev.get("transient_global_delta_chi2", np.nan)) else np.nan
+            w_end = window_mult * tau_rec_days
+
+            for g, sub in frame.groupby(group_col):
+                idx = sub.index
+                t = pd.to_numeric(sub["mjd"], errors="coerce").to_numpy(dtype=float)
+                r = pd.to_numeric(sub[resid_col], errors="coerce").to_numpy(dtype=float)
+                s = pd.to_numeric(sub[sigma_col], errors="coerce").to_numpy(dtype=float)
+
+                in_win = np.isfinite(t) & (t >= t0) & (t <= t0 + w_end)
+                good = in_win & np.isfinite(r) & np.isfinite(s) & (s > 0)
+                if np.count_nonzero(good) < 2:
+                    continue
+
+                tt = t[good] - t0
+                f = np.exp(-tt / tau_rec_days)
+                w = 1.0 / (s[good] ** 2)
+                denom = np.sum(w * f * f)
+                if denom <= 0:
+                    continue
+                A = np.sum(w * f * r[good]) / denom
+
+                z_pt = np.full_like(t, np.nan, dtype=float)
+                model = np.zeros_like(t, dtype=float)
+                model[in_win] = A * np.exp(-(t[in_win] - t0) / tau_rec_days)
+                z_good = in_win & np.isfinite(s) & (s > 0)
+                z_pt[z_good] = np.abs(model[z_good]) / s[z_good]
+
+                member = in_win.copy()
+                if np.isfinite(member_eta):
+                    member &= (z_pt > float(member_eta))
+
+                if not np.any(member):
+                    continue
+
+                frame.loc[idx[member], "transient_global_id"] = tid
+                frame.loc[idx[member], "transient_global_amp"] = A
+                frame.loc[idx[member], "transient_global_t0"] = t0
+                frame.loc[idx[member], "transient_global_delta_chi2"] = delta
+
+                z_mem = z_pt[member]
+                frame.loc[idx[member], "transient_global_n_members"] = int(np.count_nonzero(member))
+                frame.loc[idx[member], "transient_global_frac_z_lt1"] = float(np.mean(z_mem < 1.0)) if len(z_mem) else 0.0
+                frame.loc[idx[member], "transient_global_z_min"] = float(np.nanmin(z_mem)) if len(z_mem) else np.nan
+                frame.loc[idx[member], "transient_global_z_med"] = float(np.nanmedian(z_mem)) if len(z_mem) else np.nan
+                frame.loc[idx[member], "transient_global_z_max"] = float(np.nanmax(z_mem)) if len(z_mem) else np.nan
+
+        return frame
+
     out = []
     do_detrend = struct_cfg.mode in ("detrend", "both")
     do_test = struct_cfg.mode in ("test", "both")
@@ -266,6 +452,17 @@ def _run_detection_stage(
             instrument=bool(getattr(step_cfg, "instrument", False)),
             prefix="step_global",
         )
+        df_work = _apply_grouped_global_step(
+            df_work,
+            prefix="step_global",
+            resid_col=step_resid,
+            sigma_col=step_sigma,
+            group_col=backend_col,
+            member_eta=step_cfg.member_eta,
+            member_tmax_days=step_cfg.member_tmax_days,
+            min_points=step_cfg.min_points,
+            freq_col=None,
+        )
     if dm_cfg.enabled and dm_cfg.scope in ("global", "both"):
         df_work = detect_dm_step(
             df_work,
@@ -279,6 +476,50 @@ def _run_detection_stage(
             member_tmax_days=dm_cfg.member_tmax_days,
             instrument=bool(getattr(dm_cfg, "instrument", False)),
             prefix="dm_step_global",
+        )
+        df_work = _apply_grouped_global_step(
+            df_work,
+            prefix="dm_step_global",
+            resid_col=dm_resid,
+            sigma_col=dm_sigma,
+            group_col=backend_col,
+            member_eta=dm_cfg.member_eta,
+            member_tmax_days=dm_cfg.member_tmax_days,
+            min_points=dm_cfg.min_points,
+            freq_col="freq",
+        )
+
+    if tr_cfg.scope in ("global", "both"):
+        df_glob = scan_transients(
+            df_work,
+            tau_rec_days=tr_cfg.tau_rec_days,
+            window_mult=tr_cfg.window_mult,
+            min_points=tr_cfg.min_points,
+            delta_chi2_thresh=tr_cfg.delta_chi2_thresh,
+            suppress_overlap=tr_cfg.suppress_overlap,
+            resid_col=tr_resid,
+            sigma_col=tr_sigma,
+            exclude_bad_col="bad",
+            member_eta=tr_cfg.member_eta,
+            instrument=bool(getattr(tr_cfg, "instrument", False)),
+        )
+        rename_map = {
+            "transient_id": "transient_global_id",
+            "transient_amp": "transient_global_amp",
+            "transient_t0": "transient_global_t0",
+            "transient_delta_chi2": "transient_global_delta_chi2",
+        }
+        for src, dst in rename_map.items():
+            if src in df_glob.columns:
+                df_work[dst] = df_glob[src]
+        df_work = _apply_grouped_global_transients(
+            df_work,
+            resid_col=tr_resid,
+            sigma_col=tr_sigma,
+            group_col=backend_col,
+            tau_rec_days=tr_cfg.tau_rec_days,
+            window_mult=tr_cfg.window_mult,
+            member_eta=tr_cfg.member_eta,
         )
 
     if robust_cfg.enabled and robust_cfg.scope in ("global", "both"):
@@ -370,6 +611,22 @@ def _run_detection_stage(
         df_out["dm_step_id"] = df_out["dm_step_id"].fillna(-1).astype(int)
     else:
         df_out["dm_step_id"] = -1
+    if "step_applicable" not in df_out.columns and "step_global_applicable" in df_out.columns:
+        df_out["step_applicable"] = df_out["step_global_applicable"].fillna(False)
+    if "step_informative" not in df_out.columns and "step_global_informative" in df_out.columns:
+        df_out["step_informative"] = df_out["step_global_informative"].fillna(False)
+    if "dm_step_applicable" not in df_out.columns and "dm_step_global_applicable" in df_out.columns:
+        df_out["dm_step_applicable"] = df_out["dm_step_global_applicable"].fillna(False)
+    if "dm_step_informative" not in df_out.columns and "dm_step_global_informative" in df_out.columns:
+        df_out["dm_step_informative"] = df_out["dm_step_global_informative"].fillna(False)
+    if "step_applicable" not in df_out.columns:
+        df_out["step_applicable"] = False
+    if "step_informative" not in df_out.columns:
+        df_out["step_informative"] = False
+    if "dm_step_applicable" not in df_out.columns:
+        df_out["dm_step_applicable"] = False
+    if "dm_step_informative" not in df_out.columns:
+        df_out["dm_step_informative"] = False
 
     gate_inlier = None
     gate_valid = None
@@ -417,10 +674,12 @@ def _run_detection_stage(
     df_out["event_member"] = False
     if "transient_id" in df_out.columns:
         df_out["event_member"] |= df_out["transient_id"].fillna(-1).to_numpy() >= 0
-    if "step_id" in df_out.columns:
-        df_out["event_member"] |= df_out["step_id"].fillna(-1).to_numpy() >= 0
-    if "dm_step_id" in df_out.columns:
-        df_out["event_member"] |= df_out["dm_step_id"].fillna(-1).to_numpy() >= 0
+    if "transient_global_id" in df_out.columns:
+        df_out["event_member"] |= df_out["transient_global_id"].fillna(-1).to_numpy() >= 0
+    if "step_informative" in df_out.columns:
+        df_out["event_member"] |= df_out["step_informative"].fillna(False).to_numpy()
+    if "dm_step_informative" in df_out.columns:
+        df_out["event_member"] |= df_out["dm_step_informative"].fillna(False).to_numpy()
     df_out["event_member"] &= ~df_out["bad_point"].fillna(False)
 
     df_out["outlier_any"] = False
@@ -476,7 +735,9 @@ def run_pipeline(
         pandas.DataFrame: Timing, metadata, and QC annotations. The output
         includes the merged timfile metadata plus ``bad``, ``bad_day``, ``z``,
         ``bad_ou``, ``bad_mad``, ``bad_point``, ``event_member``,
-        ``transient_id``, ``step_id``, ``dm_step_id``, and ``outlier_any``
+        ``transient_id``, ``step_id``, ``dm_step_id``,
+        ``step_applicable``, ``step_informative``, ``dm_step_applicable``,
+        ``dm_step_informative``, and ``outlier_any``
         (deprecated for plotting/summary). If enabled, feature columns such as
         ``orbital_phase`` and ``solar_elongation_deg`` are added, plus
         structure-test summaries (``structure_*`` and

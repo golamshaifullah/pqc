@@ -66,6 +66,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--delta-chi2", type=float, default=25.0, help="Delta-chi2 threshold for transient detection." )
     p.add_argument("--event-instrument", action="store_true",
                    help="Print per-event membership diagnostics (z_pt stats).")
+    p.add_argument("--transient-scope", choices=["backend", "global", "both"], default="backend",
+                   help="Transient detection scope: backend/global/both (default: backend).")
 
     p.add_argument("--no-orbital-phase", action="store_true", help="Disable orbital phase feature extraction.")
     p.add_argument("--no-solar-elongation", action="store_true", help="Disable solar elongation feature extraction.")
@@ -149,6 +151,7 @@ def main() -> None:
         delta_chi2_thresh=args.delta_chi2,
         suppress_overlap=True,
         instrument=bool(args.event_instrument),
+        scope=args.transient_scope,
     )
     step_cfg = StepConfig(instrument=bool(args.event_instrument))
     dm_cfg = StepConfig(instrument=bool(args.event_instrument))

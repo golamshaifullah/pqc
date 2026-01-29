@@ -9,7 +9,7 @@ import numpy as np
 from math import erfc
 
 def norm_abs_sf(x: np.ndarray) -> np.ndarray:
-    """Return survival probabilities for |Z| where Z ~ N(0,1).
+    """Return survival probabilities for ``|Z|`` where ``Z ~ N(0,1)``.
 
     Args:
         x (np.ndarray): Array of non-negative z-values.

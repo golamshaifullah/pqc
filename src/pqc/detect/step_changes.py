@@ -59,9 +59,14 @@ def detect_step(
     """
     out = df.copy()
     out[f"{prefix}_id"] = -1
+    out[f"{prefix}_applicable"] = False
+    out[f"{prefix}_informative"] = False
     out[f"{prefix}_t0"] = np.nan
     out[f"{prefix}_amp"] = np.nan
     out[f"{prefix}_delta_chi2"] = np.nan
+    out[f"{prefix}_n_applicable"] = 0
+    out[f"{prefix}_n_informative"] = 0
+    out[f"{prefix}_frac_informative_z_lt1"] = 0.0
 
     cols = [mjd_col, resid_col, sigma_col]
     if any(c not in out.columns for c in cols):
@@ -84,26 +89,47 @@ def detect_step(
     amp = float(best["amp"])
     t = out[mjd_col].to_numpy(dtype=float)
     s = out[sigma_col].to_numpy(dtype=float)
-    member = np.isfinite(t) & (t >= t0)
-    if member_tmax_days is not None:
-        member &= t <= t0 + float(member_tmax_days)
+    t_end = np.nanmax(t) if member_tmax_days is None else (t0 + float(member_tmax_days))
+    applicable = np.isfinite(t) & (t >= t0) & (t <= t_end)
+    effect = np.zeros_like(t, dtype=float)
+    effect[applicable] = np.abs(amp)
     z_pt = np.full_like(t, np.nan, dtype=float)
-    good = member & np.isfinite(s) & (s > 0)
-    z_pt[good] = np.abs(amp) / s[good]
+    good = applicable & np.isfinite(s) & (s > 0)
+    z_pt[good] = effect[good] / s[good]
+    informative = applicable.copy()
     if np.isfinite(member_eta):
-        member &= (z_pt >= float(member_eta))
+        informative &= (z_pt > float(member_eta))
 
-    out.loc[member, f"{prefix}_id"] = 0
+    out.loc[applicable, f"{prefix}_id"] = 0
+    out[f"{prefix}_applicable"] = applicable
+    out[f"{prefix}_informative"] = informative
     out[f"{prefix}_t0"] = t0
     out[f"{prefix}_amp"] = amp
     out[f"{prefix}_delta_chi2"] = float(best["delta_chi2"])
+
+    z_inf = z_pt[informative]
+    out[f"{prefix}_n_applicable"] = int(np.count_nonzero(applicable))
+    out[f"{prefix}_n_informative"] = int(np.count_nonzero(informative))
+    out[f"{prefix}_n_members"] = int(np.count_nonzero(informative))
+    if len(z_inf):
+        out[f"{prefix}_frac_informative_z_lt1"] = float(np.mean(z_inf < 1.0))
+        out[f"{prefix}_frac_z_lt1"] = float(np.mean(z_inf < 1.0))
+        out[f"{prefix}_z_min"] = float(np.nanmin(z_inf))
+        out[f"{prefix}_z_med"] = float(np.nanmedian(z_inf))
+        out[f"{prefix}_z_max"] = float(np.nanmax(z_inf))
+    else:
+        out[f"{prefix}_frac_informative_z_lt1"] = 0.0
+        out[f"{prefix}_frac_z_lt1"] = 0.0
+        out[f"{prefix}_z_min"] = np.nan
+        out[f"{prefix}_z_med"] = np.nan
+        out[f"{prefix}_z_max"] = np.nan
 
     if instrument:
         zf = z_pt[np.isfinite(z_pt)]
         if len(zf):
             info_str = (
                 f"{prefix}_id=0 t0={t0:.6f} amp={amp:.3g} "
-                f"n_assign={int(np.count_nonzero(member))} "
+                f"n_applicable={int(np.count_nonzero(applicable))} n_informative={int(np.count_nonzero(informative))} "
                 f"z_pt[min/med/max]={np.nanmin(zf):.3g}/{np.nanmedian(zf):.3g}/{np.nanmax(zf):.3g} "
                 f"frac<1={float(np.mean(zf < 1.0)):.3g} frac<2={float(np.mean(zf < 2.0)):.3g}"
             )
@@ -138,9 +164,14 @@ def detect_dm_step(
     """
     out = df.copy()
     out[f"{prefix}_id"] = -1
+    out[f"{prefix}_applicable"] = False
+    out[f"{prefix}_informative"] = False
     out[f"{prefix}_t0"] = np.nan
     out[f"{prefix}_amp"] = np.nan
     out[f"{prefix}_delta_chi2"] = np.nan
+    out[f"{prefix}_n_applicable"] = 0
+    out[f"{prefix}_n_informative"] = 0
+    out[f"{prefix}_frac_informative_z_lt1"] = 0.0
 
     cols = [mjd_col, resid_col, sigma_col, freq_col]
     if any(c not in out.columns for c in cols):
@@ -171,28 +202,47 @@ def detect_dm_step(
     t_all = out[mjd_col].to_numpy(dtype=float)
     s_all = out[sigma_col].to_numpy(dtype=float)
     freq_all = pd.to_numeric(out[freq_col], errors="coerce").to_numpy(dtype=float)
-    member = np.isfinite(t_all) & (t_all >= t0)
-    if member_tmax_days is not None:
-        member &= t_all <= t0 + float(member_tmax_days)
+    t_end = np.nanmax(t_all) if member_tmax_days is None else (t0 + float(member_tmax_days))
+    applicable = np.isfinite(t_all) & (t_all >= t0) & (t_all <= t_end)
     z_pt = np.full_like(t_all, np.nan, dtype=float)
-    good = member & np.isfinite(s_all) & (s_all > 0) & np.isfinite(freq_all) & (freq_all != 0)
     model = np.full_like(t_all, np.nan, dtype=float)
+    good = applicable & np.isfinite(s_all) & (s_all > 0) & np.isfinite(freq_all) & (freq_all != 0)
     model[good] = amp / (freq_all[good] ** 2)
     z_pt[good] = np.abs(model[good]) / s_all[good]
+    informative = applicable.copy()
     if np.isfinite(member_eta):
-        member &= (z_pt >= float(member_eta))
+        informative &= (z_pt > float(member_eta))
 
-    out.loc[member, f"{prefix}_id"] = 0
+    out.loc[applicable, f"{prefix}_id"] = 0
+    out[f"{prefix}_applicable"] = applicable
+    out[f"{prefix}_informative"] = informative
     out[f"{prefix}_t0"] = t0
     out[f"{prefix}_amp"] = amp
     out[f"{prefix}_delta_chi2"] = float(best["delta_chi2"])
+
+    z_inf = z_pt[informative]
+    out[f"{prefix}_n_applicable"] = int(np.count_nonzero(applicable))
+    out[f"{prefix}_n_informative"] = int(np.count_nonzero(informative))
+    out[f"{prefix}_n_members"] = int(np.count_nonzero(informative))
+    if len(z_inf):
+        out[f"{prefix}_frac_informative_z_lt1"] = float(np.mean(z_inf < 1.0))
+        out[f"{prefix}_frac_z_lt1"] = float(np.mean(z_inf < 1.0))
+        out[f"{prefix}_z_min"] = float(np.nanmin(z_inf))
+        out[f"{prefix}_z_med"] = float(np.nanmedian(z_inf))
+        out[f"{prefix}_z_max"] = float(np.nanmax(z_inf))
+    else:
+        out[f"{prefix}_frac_informative_z_lt1"] = 0.0
+        out[f"{prefix}_frac_z_lt1"] = 0.0
+        out[f"{prefix}_z_min"] = np.nan
+        out[f"{prefix}_z_med"] = np.nan
+        out[f"{prefix}_z_max"] = np.nan
 
     if instrument:
         zf = z_pt[np.isfinite(z_pt)]
         if len(zf):
             info_str = (
                 f"{prefix}_id=0 t0={t0:.6f} amp={amp:.3g} "
-                f"n_assign={int(np.count_nonzero(member))} "
+                f"n_applicable={int(np.count_nonzero(applicable))} n_informative={int(np.count_nonzero(informative))} "
                 f"z_pt[min/med/max]={np.nanmin(zf):.3g}/{np.nanmedian(zf):.3g}/{np.nanmax(zf):.3g} "
                 f"frac<1={float(np.mean(zf < 1.0)):.3g} frac<2={float(np.mean(zf < 2.0)):.3g}"
             )
