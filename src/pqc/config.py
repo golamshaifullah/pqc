@@ -15,6 +15,7 @@ See Also:
 from __future__ import annotations
 from dataclasses import dataclass
 
+
 @dataclass(frozen=True)
 class FeatureConfig:
     """Configure feature-column extraction.
@@ -40,6 +41,7 @@ class FeatureConfig:
     Examples:
         >>> FeatureConfig(add_solar_elongation=False, add_freq_bin=True)
     """
+
     add_orbital_phase: bool = True
     add_solar_elongation: bool = True
     add_elevation: bool = False
@@ -48,6 +50,7 @@ class FeatureConfig:
     add_freq_bin: bool = False
     freq_bins: int = 8
     observatory_path: str | None = None
+
 
 @dataclass(frozen=True)
 class StructureConfig:
@@ -73,6 +76,7 @@ class StructureConfig:
     Examples:
         >>> StructureConfig(mode="both", nbins=16)
     """
+
     mode: str = "none"
     detrend_features: tuple[str, ...] = ("solar_elongation_deg", "orbital_phase")
     structure_features: tuple[str, ...] = ("solar_elongation_deg", "orbital_phase")
@@ -81,6 +85,7 @@ class StructureConfig:
     p_thresh: float = 0.01
     circular_features: tuple[str, ...] = ("orbital_phase",)
     structure_group_cols: tuple[str, ...] | None = None
+
 
 @dataclass(frozen=True)
 class BadMeasConfig:
@@ -98,9 +103,11 @@ class BadMeasConfig:
 
         >>> BadMeasConfig(tau_corr_days=0.03, fdr_q=0.02)
     """
-    tau_corr_days: float = 0.02     # OU correlation timescale (~30 min)
-    fdr_q: float = 0.01             # day-level BH FDR
+
+    tau_corr_days: float = 0.02  # OU correlation timescale (~30 min)
+    fdr_q: float = 0.01  # day-level BH FDR
     mark_only_worst_per_day: bool = True
+
 
 @dataclass(frozen=True)
 class TransientConfig:
@@ -122,8 +129,9 @@ class TransientConfig:
 
         >>> TransientConfig(tau_rec_days=14.0, delta_chi2_thresh=40.0)
     """
-    tau_rec_days: float = 7.0       # exp recovery time constant
-    window_mult: float = 5.0        # scan window = window_mult * tau_rec
+
+    tau_rec_days: float = 7.0  # exp recovery time constant
+    window_mult: float = 5.0  # scan window = window_mult * tau_rec
     min_points: int = 6
     delta_chi2_thresh: float = 25.0
     suppress_overlap: bool = True
@@ -146,6 +154,7 @@ class StepConfig:
         This detector searches for a single best step per group and annotates
         rows occurring after the step time.
     """
+
     enabled: bool = True
     min_points: int = 20
     delta_chi2_thresh: float = 25.0
@@ -154,12 +163,15 @@ class StepConfig:
     member_tmax_days: float | None = 3650.0
     instrument: bool = False
 
+
 @dataclass(frozen=True)
 class RobustOutlierConfig:
     """Configure robust (MAD-based) outlier detection."""
+
     enabled: bool = True
     z_thresh: float = 5.0
     scope: str = "global"  # backend/global/both
+
 
 @dataclass(frozen=True)
 class MergeConfig:
@@ -174,7 +186,9 @@ class MergeConfig:
 
         >>> MergeConfig(tol_days=3.0 / 86400.0)
     """
-    tol_days: float = 2.0 / 86400.0 # 2 seconds default
+
+    tol_days: float = 2.0 / 86400.0  # 2 seconds default
+
 
 @dataclass(frozen=True)
 class PreprocConfig:
@@ -189,6 +203,7 @@ class PreprocConfig:
         min_per_bin (int): Minimum points per bin.
         circular_features (tuple[str, ...]): Features treated as circular in [0, 1).
     """
+
     detrend_features: tuple[str, ...] = ()
     rescale_feature: str | None = None
     condition_on: tuple[str, ...] = ("group",)
@@ -197,10 +212,54 @@ class PreprocConfig:
     min_per_bin: int = 5
     circular_features: tuple[str, ...] = ("orbital_phase",)
 
+
 @dataclass(frozen=True)
 class OutlierGateConfig:
     """Configure hard sigma gating for outlier membership."""
+
     enabled: bool = False
     sigma_thresh: float = 3.0
     resid_col: str | None = None
     sigma_col: str | None = None
+
+
+@dataclass(frozen=True)
+class SolarCutConfig:
+    """Configure solar-elongation based flagging.
+
+    Attributes:
+        enabled (bool): Enable solar-elongation flagging.
+        limit_deg (float | None): Fixed cutoff angle in degrees. If None, the
+            cutoff is estimated from residuals.
+        sigma_thresh (float): Threshold in units of sigma for cutoff estimation.
+        nbins (int): Number of elongation bins for cutoff estimation.
+        min_points (int): Minimum points required to attempt estimation.
+    """
+
+    enabled: bool = False
+    limit_deg: float | None = None
+    sigma_thresh: float = 3.0
+    nbins: int = 18
+    min_points: int = 20
+
+
+@dataclass(frozen=True)
+class OrbitalPhaseCutConfig:
+    """Configure orbital-phase based flagging.
+
+    Attributes:
+        enabled (bool): Enable orbital-phase flagging.
+        center_phase (float): Eclipse center phase (0..1).
+        limit_phase (float | None): Fixed cutoff half-width in phase units
+            (0..0.5). If None, the cutoff is estimated from residuals.
+        sigma_thresh (float): Threshold in units of sigma for cutoff estimation.
+        nbins (int): Number of phase-distance bins for cutoff estimation.
+        min_points (int): Minimum points required to attempt estimation.
+    """
+
+    enabled: bool = False
+    center_phase: float = 0.25
+    limit_phase: float | None = None
+    sigma_thresh: float = 3.0
+    nbins: int = 18
+    min_points: int = 20

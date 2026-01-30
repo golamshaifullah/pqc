@@ -13,6 +13,7 @@ from typing import Sequence
 import numpy as np
 from pqc.utils.stats import robust_scale_mad
 
+
 def ou_innovations_z(
     t_days: np.ndarray | Sequence[float],
     y: np.ndarray | Sequence[float],
@@ -59,9 +60,10 @@ def ou_innovations_z(
         dt = t[i] - t[i - 1]
         phi = np.exp(-dt / tau_days) if tau_days > 0 else 0.0
         innov = y[i] - phi * y[i - 1]
-        vinnov = (s[i] ** 2) + (phi ** 2) * (s[i - 1] ** 2) + q * (1.0 - phi ** 2)
+        vinnov = (s[i] ** 2) + (phi**2) * (s[i - 1] ** 2) + q * (1.0 - phi**2)
         z[i] = innov / np.sqrt(vinnov) if vinnov > 0 else np.nan
     return z
+
 
 def estimate_q(
     t_days: np.ndarray | Sequence[float],
@@ -107,7 +109,7 @@ def estimate_q(
         return robust_scale_mad(z) - 1.0
 
     q_lo = 0.0
-    q_hi = np.nanmedian(s ** 2) * q_max_factor
+    q_hi = np.nanmedian(s**2) * q_max_factor
 
     f_lo = scale_minus_one(q_lo)
     if f_lo <= 0:

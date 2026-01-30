@@ -20,6 +20,7 @@ import pandas as pd
 KNOWN_TELS: set[str] = {"EFF", "JBO", "NRT", "WSRT", "SRT", "LEAP"}
 """Known telescope identifiers used for timfile-derived keys."""
 
+
 def parse_timfile_triplet(timfile_path: str) -> tuple[str | None, str | None, float | None]:
     """Parse ``TEL[.BACKEND][.BANDFREQ]`` from a timfile basename.
 
@@ -60,6 +61,7 @@ def parse_timfile_triplet(timfile_path: str) -> tuple[str | None, str | None, fl
                     band = None
             return tel, backend, band
     return None, None, None
+
 
 def ensure_sys_group(df: pd.DataFrame) -> pd.DataFrame:
     """Fill missing ``sys``/``group`` using timfile naming and frequencies.
@@ -142,7 +144,11 @@ def ensure_sys_group(df: pd.DataFrame) -> pd.DataFrame:
             band_mhz = int(round(float(band)))
         else:
             tf = row.get("_timfile")
-            if band_from_cen is not None and tf in band_from_cen.index and pd.notna(band_from_cen.loc[tf]):
+            if (
+                band_from_cen is not None
+                and tf in band_from_cen.index
+                and pd.notna(band_from_cen.loc[tf])
+            ):
                 band_mhz = int(round(float(band_from_cen.loc[tf])))
             elif tf in band_from_freq.index and pd.notna(band_from_freq.loc[tf]):
                 band_mhz = int(round(float(band_from_freq.loc[tf])))

@@ -3,6 +3,7 @@ import pandas as pd
 
 from pqc.utils.diagnostics import export_structure_table
 
+
 def test_export_structure_table():
     df = pd.DataFrame(
         {

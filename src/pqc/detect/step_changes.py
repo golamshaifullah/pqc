@@ -6,12 +6,14 @@ import numpy as np
 import pandas as pd
 
 
-def _best_step(mjd: np.ndarray, y: np.ndarray, s: np.ndarray, min_points: int, delta_chi2_thresh: float):
+def _best_step(
+    mjd: np.ndarray, y: np.ndarray, s: np.ndarray, min_points: int, delta_chi2_thresh: float
+):
     n = len(y)
     if n < 2 * min_points:
         return None
 
-    w = 1.0 / (s ** 2)
+    w = 1.0 / (s**2)
     # cumulative sums for fast split stats
     w_c = np.cumsum(w)
     wy_c = np.cumsum(w * y)
@@ -98,7 +100,7 @@ def detect_step(
     z_pt[good] = effect[good] / s[good]
     informative = applicable.copy()
     if np.isfinite(member_eta):
-        informative &= (z_pt > float(member_eta))
+        informative &= z_pt > float(member_eta)
 
     out.loc[applicable, f"{prefix}_id"] = 0
     out[f"{prefix}_applicable"] = applicable
@@ -135,12 +137,18 @@ def detect_step(
             )
             try:
                 from pqc.utils.logging import info
+
                 info(info_str)
                 if np.mean(zf < 1.0) > 0.5:
                     from pqc.utils.logging import warn
-                    warn(f"{prefix} membership has >50% members with z_pt<1.0; check membership criteria.")
-            except Exception:
-                pass
+
+                    warn(
+                        f"{prefix} membership has >50% members with z_pt<1.0; check membership criteria."
+                    )
+            except Exception as exc:
+                from pqc.utils.logging import warn
+
+                warn(f"{prefix} instrumentation logging failed: {exc}")
     return out
 
 
@@ -211,7 +219,7 @@ def detect_dm_step(
     z_pt[good] = np.abs(model[good]) / s_all[good]
     informative = applicable.copy()
     if np.isfinite(member_eta):
-        informative &= (z_pt > float(member_eta))
+        informative &= z_pt > float(member_eta)
 
     out.loc[applicable, f"{prefix}_id"] = 0
     out[f"{prefix}_applicable"] = applicable
@@ -248,10 +256,16 @@ def detect_dm_step(
             )
             try:
                 from pqc.utils.logging import info
+
                 info(info_str)
                 if np.mean(zf < 1.0) > 0.5:
                     from pqc.utils.logging import warn
-                    warn(f"{prefix} membership has >50% members with z_pt<1.0; check membership criteria.")
-            except Exception:
-                pass
+
+                    warn(
+                        f"{prefix} membership has >50% members with z_pt<1.0; check membership criteria."
+                    )
+            except Exception as exc:
+                from pqc.utils.logging import warn
+
+                warn(f"{prefix} instrumentation logging failed: {exc}")
     return out

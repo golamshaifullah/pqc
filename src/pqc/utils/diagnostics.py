@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 from pqc.utils.logging import info, warn
 
+
 def summarize_dataset(df: pd.DataFrame, backend_col: str = "group") -> None:
     """Print a compact summary of dataset composition.
 
@@ -42,6 +43,7 @@ def summarize_dataset(df: pd.DataFrame, backend_col: str = "group") -> None:
         info(f"Backends ({backend_col}) count: {len(vc)}")
         info("Top 20 backends:")
         info(vc.head(20).to_string())
+
 
 def summarize_results(df: pd.DataFrame, backend_col: str = "group") -> None:
     """Print summary of detector outputs and per-backend rates.
@@ -74,11 +76,19 @@ def summarize_results(df: pd.DataFrame, backend_col: str = "group") -> None:
     if "event_member" in df.columns:
         info(f"Event members: {int(df['event_member'].fillna(False).sum())}")
     if "transient_id" in df.columns:
-        n_events = int(df["transient_id"].max() + 1) if len(df) and df["transient_id"].max() >= 0 else 0
+        n_events = (
+            int(df["transient_id"].max() + 1) if len(df) and df["transient_id"].max() >= 0 else 0
+        )
         info(f"Transient events detected (per-backend ids): {n_events}")
         if n_events:
             ev = df[df["transient_id"] >= 0].copy()
-            cols = [backend_col, "transient_id", "transient_t0", "transient_amp", "transient_delta_chi2"]
+            cols = [
+                backend_col,
+                "transient_id",
+                "transient_t0",
+                "transient_amp",
+                "transient_delta_chi2",
+            ]
             cols = [c for c in cols if c in ev.columns]
             ev = ev.groupby([backend_col, "transient_id"], as_index=False).first()
             info("Detected events (first 30):")
@@ -87,8 +97,10 @@ def summarize_results(df: pd.DataFrame, backend_col: str = "group") -> None:
     if backend_col in df.columns and len(df):
         per = df.groupby(backend_col, dropna=False)
         base = per.size()
+
         def _rate_id(col: str) -> pd.Series:
             return per[col].apply(lambda s: float((s >= 0).mean()))
+
         def _rate_bool(col: str) -> pd.Series:
             return per[col].apply(lambda s: float(s.fillna(False).mean()))
 
@@ -97,18 +109,38 @@ def summarize_results(df: pd.DataFrame, backend_col: str = "group") -> None:
             bad_ou_rate = per["bad_ou"].mean()
         elif "bad" in df.columns:
             bad_ou_rate = per["bad"].mean()
-        bad_mad_rate = per["bad_mad"].mean() if "bad_mad" in df.columns else pd.Series(0.0, index=base.index)
-        bad_point_rate = per["bad_point"].mean() if "bad_point" in df.columns else pd.Series(0.0, index=base.index)
-        transient_rate = _rate_id("transient_id") if "transient_id" in df.columns else pd.Series(0.0, index=base.index)
+        bad_mad_rate = (
+            per["bad_mad"].mean() if "bad_mad" in df.columns else pd.Series(0.0, index=base.index)
+        )
+        bad_point_rate = (
+            per["bad_point"].mean()
+            if "bad_point" in df.columns
+            else pd.Series(0.0, index=base.index)
+        )
+        transient_rate = (
+            _rate_id("transient_id")
+            if "transient_id" in df.columns
+            else pd.Series(0.0, index=base.index)
+        )
         if "step_informative" in df.columns:
             step_rate = _rate_bool("step_informative")
         else:
-            step_rate = _rate_id("step_id") if "step_id" in df.columns else pd.Series(0.0, index=base.index)
+            step_rate = (
+                _rate_id("step_id") if "step_id" in df.columns else pd.Series(0.0, index=base.index)
+            )
         if "dm_step_informative" in df.columns:
             dm_step_rate = _rate_bool("dm_step_informative")
         else:
-            dm_step_rate = _rate_id("dm_step_id") if "dm_step_id" in df.columns else pd.Series(0.0, index=base.index)
-        event_rate = per["event_member"].mean() if "event_member" in df.columns else pd.Series(0.0, index=base.index)
+            dm_step_rate = (
+                _rate_id("dm_step_id")
+                if "dm_step_id" in df.columns
+                else pd.Series(0.0, index=base.index)
+            )
+        event_rate = (
+            per["event_member"].mean()
+            if "event_member" in df.columns
+            else pd.Series(0.0, index=base.index)
+        )
         summary = pd.DataFrame(
             {
                 "n": base,
@@ -129,6 +161,7 @@ def summarize_results(df: pd.DataFrame, backend_col: str = "group") -> None:
     if present_cols:
         for col in present_cols:
             info(f"{col}: {int(df[col].fillna(False).sum())}")
+
 
 def export_event_table(df: pd.DataFrame, backend_col: str = "group") -> pd.DataFrame:
     """Return a tidy event table (one row per detected transient).
@@ -152,7 +185,20 @@ def export_event_table(df: pd.DataFrame, backend_col: str = "group") -> pd.DataF
     if ev.empty:
         return pd.DataFrame()
     ev = ev.groupby([backend_col, "transient_id"], as_index=False).first()
-    return ev[[c for c in [backend_col, "transient_id", "transient_t0", "transient_amp", "transient_delta_chi2"] if c in ev.columns]]
+    return ev[
+        [
+            c
+            for c in [
+                backend_col,
+                "transient_id",
+                "transient_t0",
+                "transient_amp",
+                "transient_delta_chi2",
+            ]
+            if c in ev.columns
+        ]
+    ]
+
 
 def export_structure_table(
     df: pd.DataFrame,
@@ -189,7 +235,7 @@ def export_structure_table(
     if not chi2_cols:
         return pd.DataFrame()
 
-    features = [c[len(prefix):-len("_chi2")] for c in chi2_cols]
+    features = [c[len(prefix) : -len("_chi2")] for c in chi2_cols]
     cols = [c for c in group_cols if c in df.columns]
     if not cols:
         cols = []

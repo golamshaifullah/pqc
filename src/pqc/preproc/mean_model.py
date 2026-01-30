@@ -35,7 +35,13 @@ def fit_binned_mean(
 
     good = np.isfinite(x) & np.isfinite(y) & np.isfinite(w) & (w > 0)
     if not np.any(good):
-        return {"edges": np.array([]), "means": np.array([]), "has_mean": np.array([]), "circular": bool(circular), "min_per_bin": int(min_per_bin)}
+        return {
+            "edges": np.array([]),
+            "means": np.array([]),
+            "has_mean": np.array([]),
+            "circular": bool(circular),
+            "min_per_bin": int(min_per_bin),
+        }
 
     xg = x[good]
     yg = y[good]
@@ -51,7 +57,13 @@ def fit_binned_mean(
 
     edges = _bin_edges(xg, nbins_eff, circular)
     if edges.size <= 1:
-        return {"edges": np.array([]), "means": np.array([]), "has_mean": np.array([]), "circular": bool(circular), "min_per_bin": int(min_per_bin)}
+        return {
+            "edges": np.array([]),
+            "means": np.array([]),
+            "has_mean": np.array([]),
+            "circular": bool(circular),
+            "min_per_bin": int(min_per_bin),
+        }
 
     nbins_eff = int(edges.size - 1)
     bin_id = np.digitize(xg, edges) - 1

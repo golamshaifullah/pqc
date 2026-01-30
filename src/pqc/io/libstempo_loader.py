@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 import libstempo as lt
 
+
 def load_libstempo(parfile: str | Path) -> pd.DataFrame:
     """Load timing arrays from a ``.par``/``*_all.tim`` pair using libstempo.
 
@@ -71,8 +72,10 @@ def load_libstempo(parfile: str | Path) -> pd.DataFrame:
     if hasattr(psr, "bat"):
         try:
             out["bat_mjd"] = np.asarray(psr.bat(), dtype="float64")
-        except Exception:
-            pass
+        except Exception as exc:
+            from pqc.utils.logging import warn
+
+            warn(f"Failed to read bat_mjd from libstempo: {exc}")
 
     df = pd.DataFrame(out).sort_values("mjd").reset_index(drop=True)
     return df

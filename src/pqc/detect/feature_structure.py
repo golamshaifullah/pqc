@@ -15,6 +15,7 @@ import pandas as pd
 
 from pqc.utils.stats import chi2_sf_approx
 
+
 def _bin_edges(x: np.ndarray, nbins: int, circular: bool) -> np.ndarray:
     """Compute bin edges for linear or circular features.
 
@@ -34,6 +35,7 @@ def _bin_edges(x: np.ndarray, nbins: int, circular: bool) -> np.ndarray:
     if not np.isfinite(lo) or not np.isfinite(hi) or lo == hi:
         return np.array([lo, hi]) if np.isfinite(lo) else np.array([0.0, 1.0])
     return np.linspace(lo, hi, nbins + 1)
+
 
 def detect_binned_structure(
     df: pd.DataFrame,
@@ -122,6 +124,7 @@ def detect_binned_structure(
 
     p_like = chi2_sf_approx(chi2, dof) if dof > 0 else np.nan
     return {"chi2": chi2, "dof": dof, "p_like": p_like, "bin_table": pd.DataFrame(rows)}
+
 
 def detrend_residuals_binned(
     df: pd.DataFrame,

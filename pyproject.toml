@@ -23,6 +23,20 @@ docs = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E203", "E501"]
+
+[tool.ruff.isort]
+combine-as-imports = true
+known-first-party = ["pqc"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39"]
+
 [project.scripts]
 pqc = "pqc.cli:main"
 

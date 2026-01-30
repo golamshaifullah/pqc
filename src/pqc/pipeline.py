@@ -37,6 +37,8 @@ from pqc.config import (
     RobustOutlierConfig,
     PreprocConfig,
     OutlierGateConfig,
+    SolarCutConfig,
+    OrbitalPhaseCutConfig,
 )
 from pqc.io.timfile import parse_all_timfiles
 from pqc.io.libstempo_loader import load_libstempo
@@ -117,7 +119,14 @@ def _run_detection_stage(
             s = pd.to_numeric(sub[sigma_col], errors="coerce").to_numpy(dtype=float)
 
             pre = np.isfinite(t) & (t < t0) & np.isfinite(r) & np.isfinite(s) & (s > 0)
-            post = np.isfinite(t) & (t >= t0) & (t <= t_end) & np.isfinite(r) & np.isfinite(s) & (s > 0)
+            post = (
+                np.isfinite(t)
+                & (t >= t0)
+                & (t <= t_end)
+                & np.isfinite(r)
+                & np.isfinite(s)
+                & (s > 0)
+            )
             if freq_col is not None and freq_col in sub.columns:
                 f = pd.to_numeric(sub[freq_col], errors="coerce").to_numpy(dtype=float)
                 goodf = np.isfinite(f) & (f != 0)
@@ -146,8 +155,8 @@ def _run_detection_stage(
                 frame.loc[idx, f"{prefix}_z_max"] = np.nan
                 continue
 
-            w_pre = 1.0 / (s_pre ** 2)
-            w_post = 1.0 / (s_post ** 2)
+            w_pre = 1.0 / (s_pre**2)
+            w_post = 1.0 / (s_post**2)
             mu_pre = np.sum(w_pre * y_pre) / np.sum(w_pre)
             mu_post = np.sum(w_post * y_post) / np.sum(w_post)
             amp = float(mu_post - mu_pre)
@@ -166,7 +175,7 @@ def _run_detection_stage(
             z_pt[good] = effect[good] / s[good]
             informative = applicable.copy()
             if np.isfinite(member_eta):
-                informative &= (z_pt > float(member_eta))
+                informative &= z_pt > float(member_eta)
 
             frame.loc[idx, f"{prefix}_id"] = -1
             frame.loc[idx[applicable], f"{prefix}_id"] = 0
@@ -205,11 +214,16 @@ def _run_detection_stage(
         if "transient_global_id" not in frame.columns or group_col not in frame.columns:
             return frame
 
-        events = frame.loc[frame["transient_global_id"] >= 0, ["transient_global_id", "transient_global_t0", "transient_global_delta_chi2"]]
+        events = frame.loc[
+            frame["transient_global_id"] >= 0,
+            ["transient_global_id", "transient_global_t0", "transient_global_delta_chi2"],
+        ]
         if events.empty:
             return frame
 
-        events = events.dropna(subset=["transient_global_id", "transient_global_t0"]).drop_duplicates("transient_global_id")
+        events = events.dropna(
+            subset=["transient_global_id", "transient_global_t0"]
+        ).drop_duplicates("transient_global_id")
         if events.empty:
             return frame
 
@@ -226,7 +240,11 @@ def _run_detection_stage(
         for _, ev in events.iterrows():
             tid = int(ev["transient_global_id"])
             t0 = float(ev["transient_global_t0"])
-            delta = float(ev["transient_global_delta_chi2"]) if np.isfinite(ev.get("transient_global_delta_chi2", np.nan)) else np.nan
+            delta = (
+                float(ev["transient_global_delta_chi2"])
+                if np.isfinite(ev.get("transient_global_delta_chi2", np.nan))
+                else np.nan
+            )
             w_end = window_mult * tau_rec_days
 
             for g, sub in frame.groupby(group_col):
@@ -256,7 +274,7 @@ def _run_detection_stage(
 
                 member = in_win.copy()
                 if np.isfinite(member_eta):
-                    member &= (z_pt > float(member_eta))
+                    member &= z_pt > float(member_eta)
 
                 if not np.any(member):
                     continue
@@ -268,10 +286,18 @@ def _run_detection_stage(
 
                 z_mem = z_pt[member]
                 frame.loc[idx[member], "transient_global_n_members"] = int(np.count_nonzero(member))
-                frame.loc[idx[member], "transient_global_frac_z_lt1"] = float(np.mean(z_mem < 1.0)) if len(z_mem) else 0.0
-                frame.loc[idx[member], "transient_global_z_min"] = float(np.nanmin(z_mem)) if len(z_mem) else np.nan
-                frame.loc[idx[member], "transient_global_z_med"] = float(np.nanmedian(z_mem)) if len(z_mem) else np.nan
-                frame.loc[idx[member], "transient_global_z_max"] = float(np.nanmax(z_mem)) if len(z_mem) else np.nan
+                frame.loc[idx[member], "transient_global_frac_z_lt1"] = (
+                    float(np.mean(z_mem < 1.0)) if len(z_mem) else 0.0
+                )
+                frame.loc[idx[member], "transient_global_z_min"] = (
+                    float(np.nanmin(z_mem)) if len(z_mem) else np.nan
+                )
+                frame.loc[idx[member], "transient_global_z_med"] = (
+                    float(np.nanmedian(z_mem)) if len(z_mem) else np.nan
+                )
+                frame.loc[idx[member], "transient_global_z_max"] = (
+                    float(np.nanmax(z_mem)) if len(z_mem) else np.nan
+                )
 
         return frame
 
@@ -360,7 +386,9 @@ def _run_detection_stage(
         proc_resid_col = "resid_detr"
         proc_sigma_col = "sigma"
         df_work["preproc_tag"] = f"detrend:{','.join(preproc_feats)}"
-        df_work["preproc_notes"] = f"group_cols={group_cols or (backend_col,)}; nbins={preproc_cfg.nbins}; min_per_bin={preproc_cfg.min_per_bin}"
+        df_work["preproc_notes"] = (
+            f"group_cols={group_cols or (backend_col,)}; nbins={preproc_cfg.nbins}; min_per_bin={preproc_cfg.min_per_bin}"
+        )
 
     if preproc_cfg.rescale_feature:
         rescale_feat = preproc_cfg.rescale_feature
@@ -618,7 +646,10 @@ def _run_detection_stage(
         df_out["step_informative"] = df_out["step_global_informative"].fillna(False)
     if "dm_step_applicable" not in df_out.columns and "dm_step_global_applicable" in df_out.columns:
         df_out["dm_step_applicable"] = df_out["dm_step_global_applicable"].fillna(False)
-    if "dm_step_informative" not in df_out.columns and "dm_step_global_informative" in df_out.columns:
+    if (
+        "dm_step_informative" not in df_out.columns
+        and "dm_step_global_informative" in df_out.columns
+    ):
         df_out["dm_step_informative"] = df_out["dm_step_global_informative"].fillna(False)
     if "step_applicable" not in df_out.columns:
         df_out["step_applicable"] = False
@@ -648,8 +679,10 @@ def _run_detection_stage(
         df_out["outlier_gate_sigma_col"] = sigma_gate_col
         df_out["outlier_gate_inlier"] = False if gate_inlier is None else gate_inlier
         if gate_cfg.resid_col is None and gate_cfg.sigma_col is None:
-            if (mad_resid != resid_gate_col):
-                warn(f"Outlier gate uses {resid_gate_col}/{sigma_gate_col} but MAD uses {mad_resid}/sigma; set gate columns explicitly to align.")
+            if mad_resid != resid_gate_col:
+                warn(
+                    f"Outlier gate uses {resid_gate_col}/{sigma_gate_col} but MAD uses {mad_resid}/sigma; set gate columns explicitly to align."
+                )
 
     df_out["bad_hard"] = False
     if gate_inlier is not None:
@@ -687,6 +720,101 @@ def _run_detection_stage(
     df_out["outlier_any"] |= df_out["bad_point"]
     df_out["outlier_any"] |= df_out["event_member"]
 
+    if solar_cfg.enabled:
+        if "solar_elongation_deg" not in df_out.columns:
+            warn("solar elongation not available; solar cut disabled for this run.")
+        else:
+            resid_col = ou_resid
+            sigma_col = ou_sigma
+            elong = pd.to_numeric(df_out["solar_elongation_deg"], errors="coerce").to_numpy(
+                dtype=float
+            )
+            r = pd.to_numeric(df_out[resid_col], errors="coerce").to_numpy(dtype=float)
+            s = pd.to_numeric(df_out[sigma_col], errors="coerce").to_numpy(dtype=float)
+            valid = np.isfinite(elong) & np.isfinite(r) & np.isfinite(s) & (s > 0)
+
+            cut = None
+            if solar_cfg.limit_deg is not None:
+                cut = float(solar_cfg.limit_deg)
+            elif valid.sum() >= int(solar_cfg.min_points):
+                nbins = int(solar_cfg.nbins)
+                edges = np.linspace(0.0, 180.0, nbins + 1)
+                centers = 0.5 * (edges[:-1] + edges[1:])
+                z = np.abs(r[valid]) / s[valid]
+                x = elong[valid]
+                med = np.full(nbins, np.nan)
+                for i in range(nbins):
+                    mask = (x >= edges[i]) & (x < edges[i + 1])
+                    if mask.any():
+                        med[i] = np.nanmedian(z[mask])
+                thresh = float(solar_cfg.sigma_thresh)
+                valid_bins = np.isfinite(med)
+                for i in range(nbins):
+                    if not valid_bins[i]:
+                        continue
+                    tail = med[i:][valid_bins[i:]]
+                    if tail.size > 0 and np.all(tail <= thresh):
+                        cut = float(centers[i])
+                        break
+                if cut is None and np.any(med <= thresh):
+                    cut = float(np.nanmean(centers[med <= thresh]))
+
+            df_out["solar_cut_deg"] = np.nan if cut is None else float(cut)
+            df_out["solar_cut_sigma_thresh"] = float(solar_cfg.sigma_thresh)
+            df_out["solar_bad"] = False
+            if cut is not None:
+                df_out["solar_bad"] = pd.to_numeric(
+                    df_out["solar_elongation_deg"], errors="coerce"
+                ).to_numpy(dtype=float) <= float(cut)
+
+    if orbital_cfg.enabled:
+        if "orbital_phase" not in df_out.columns:
+            warn("orbital phase not available; orbital phase cut disabled for this run.")
+        else:
+            resid_col = ou_resid
+            sigma_col = ou_sigma
+            phase = pd.to_numeric(df_out["orbital_phase"], errors="coerce").to_numpy(dtype=float)
+            r = pd.to_numeric(df_out[resid_col], errors="coerce").to_numpy(dtype=float)
+            s = pd.to_numeric(df_out[sigma_col], errors="coerce").to_numpy(dtype=float)
+            valid = np.isfinite(phase) & np.isfinite(r) & np.isfinite(s) & (s > 0)
+
+            cut = None
+            center = float(orbital_cfg.center_phase)
+            if orbital_cfg.limit_phase is not None:
+                cut = float(orbital_cfg.limit_phase)
+            elif valid.sum() >= int(orbital_cfg.min_points):
+                nbins = int(orbital_cfg.nbins)
+                # distance to eclipse center, folded to [0, 0.5]
+                dist = np.minimum(
+                    np.abs(phase[valid] - center), 1.0 - np.abs(phase[valid] - center)
+                )
+                edges = np.linspace(0.0, 0.5, nbins + 1)
+                centers = 0.5 * (edges[:-1] + edges[1:])
+                z = np.abs(r[valid]) / s[valid]
+                med = np.full(nbins, np.nan)
+                for i in range(nbins):
+                    mask = (dist >= edges[i]) & (dist < edges[i + 1])
+                    if mask.any():
+                        med[i] = np.nanmedian(z[mask])
+                thresh = float(orbital_cfg.sigma_thresh)
+                valid_bins = np.isfinite(med)
+                for i in range(nbins):
+                    if not valid_bins[i]:
+                        continue
+                    tail = med[i:][valid_bins[i:]]
+                    if tail.size > 0 and np.all(tail <= thresh):
+                        cut = float(centers[i])
+                        break
+                if cut is None and np.any(med <= thresh):
+                    cut = float(np.nanmean(centers[med <= thresh]))
+
+            df_out["orbital_cut_phase"] = np.nan if cut is None else float(cut)
+            df_out["orbital_cut_sigma_thresh"] = float(orbital_cfg.sigma_thresh)
+            df_out["orbital_phase_bad"] = False
+            if cut is not None:
+                dist_all = np.minimum(np.abs(phase - center), 1.0 - np.abs(phase - center))
+                df_out["orbital_phase_bad"] = np.isfinite(dist_all) & (dist_all <= float(cut))
+
     return df_out
 
 
@@ -704,6 +832,8 @@ def run_pipeline(
     robust_cfg: RobustOutlierConfig = RobustOutlierConfig(),
     preproc_cfg: PreprocConfig = PreprocConfig(),
     gate_cfg: OutlierGateConfig = OutlierGateConfig(),
+    solar_cfg: SolarCutConfig = SolarCutConfig(),
+    orbital_cfg: OrbitalPhaseCutConfig = OrbitalPhaseCutConfig(),
     drop_unmatched: bool = False,
     settings_out: str | Path | None = None,
 ) -> pd.DataFrame:
@@ -798,6 +928,8 @@ def run_pipeline(
         robust_cfg=robust_cfg,
         preproc_cfg=preproc_cfg,
         gate_cfg=gate_cfg,
+        solar_cfg=solar_cfg,
+        orbital_cfg=orbital_cfg,
     )
 
     info("[1/6] Parse timfiles")

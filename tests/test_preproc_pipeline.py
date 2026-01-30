@@ -1,7 +1,15 @@
 import numpy as np
 import pandas as pd
 
-from pqc.config import BadMeasConfig, TransientConfig, StructureConfig, StepConfig, RobustOutlierConfig, PreprocConfig, OutlierGateConfig
+from pqc.config import (
+    BadMeasConfig,
+    TransientConfig,
+    StructureConfig,
+    StepConfig,
+    RobustOutlierConfig,
+    PreprocConfig,
+    OutlierGateConfig,
+)
 from pqc.detect.bad_measurements import detect_bad
 from pqc.detect.transients import scan_transients
 from pqc.pipeline import _run_detection_stage
@@ -65,9 +73,13 @@ def _make_deterministic_df() -> tuple[pd.DataFrame, int]:
     mjd = 59000.0 + np.arange(n, dtype=float)
     day = np.floor(mjd).astype(int)
 
-    orbital_phase = np.array([0.05, 0.10, 0.12, 0.30, 0.32, 0.33, 0.34, 0.60, 0.62, 0.65, 0.80, 0.85])
+    orbital_phase = np.array(
+        [0.05, 0.10, 0.12, 0.30, 0.32, 0.33, 0.34, 0.60, 0.62, 0.65, 0.80, 0.85]
+    )
     sigma = np.ones(n, dtype=float)
-    resid = np.array([0.50, 0.60, 0.40, 10.50, 10.60, 10.40, 10.55, 0.45, 0.52, 0.48, 30.50, 0.58], dtype=float)
+    resid = np.array(
+        [0.50, 0.60, 0.40, 10.50, 10.60, 10.40, 10.55, 0.45, 0.52, 0.48, 30.50, 0.58], dtype=float
+    )
     bad_idx = 10
 
     df = pd.DataFrame(
@@ -165,7 +177,9 @@ def test_structure_present_does_not_change_bad_flags():
         backend_col="group",
         bad_cfg=bad_cfg,
         tr_cfg=tr_cfg,
-        struct_cfg=StructureConfig(mode="test", structure_features=("orbital_phase",), p_thresh=0.05),
+        struct_cfg=StructureConfig(
+            mode="test", structure_features=("orbital_phase",), p_thresh=0.05
+        ),
         step_cfg=step_cfg,
         dm_cfg=dm_cfg,
         robust_cfg=robust_cfg,

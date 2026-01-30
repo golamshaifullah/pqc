@@ -1,5 +1,6 @@
 from pqc.features.feature_extraction import _load_observatory_map
 
+
 def test_load_observatory_map(tmp_path):
     path = tmp_path / "obs.dat"
     path.write_text("1 2 3 SITE1 s1\n4 5 6 SITE2\n", encoding="utf-8")

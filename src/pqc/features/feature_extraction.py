@@ -18,6 +18,7 @@ import pandas as pd
 
 from pqc.utils.logging import warn
 
+
 def _read_par_value(parfile: str | Path, key: str) -> float | None:
     """Return a float value for a key in a parfile, or None if missing.
 
@@ -37,6 +38,7 @@ def _read_par_value(parfile: str | Path, key: str) -> float | None:
             except Exception:
                 return None
     return None
+
 
 def add_orbital_phase(
     df: pd.DataFrame,
@@ -73,6 +75,7 @@ def add_orbital_phase(
     phase = np.mod((mjd - t0) / pb, 1.0)
     d["orbital_phase"] = phase
     return d
+
 
 def add_solar_elongation(
     df: pd.DataFrame,
@@ -120,6 +123,7 @@ def add_solar_elongation(
     sep = psr.separation(sun).to(u.deg).value
     d["solar_elongation_deg"] = sep
     return d
+
 
 def add_altaz_features(
     df: pd.DataFrame,
@@ -204,7 +208,9 @@ def add_altaz_features(
             try:
                 loc = EarthLocation.of_site(str(tel))
             except Exception:
-                warn(f"Unknown telescope site '{tel}'; elevation/airmass/parallactic angle will be NaN for this site.")
+                warn(
+                    f"Unknown telescope site '{tel}'; elevation/airmass/parallactic angle will be NaN for this site."
+                )
                 continue
 
         t = Time(d.loc[mask, mjd_col].to_numpy(dtype=float), format="mjd", scale="utc")
@@ -233,6 +239,7 @@ def add_altaz_features(
             d.loc[mask, "parallactic_angle_deg"] = np.degrees(q)
 
     return d
+
 
 def add_freq_bin(
     df: pd.DataFrame,
@@ -281,6 +288,7 @@ def add_freq_bin(
     d[out_col] = bin_id
     return d
 
+
 def _read_par_radec(parfile: str | Path) -> tuple[str | None, str | None]:
     """Read RA/DEC strings from a parfile.
 
@@ -304,6 +312,7 @@ def _read_par_radec(parfile: str | Path) -> tuple[str | None, str | None]:
             if len(parts) > 1:
                 decj = parts[1]
     return raj, decj
+
 
 def add_feature_columns(
     df: pd.DataFrame,
@@ -359,6 +368,7 @@ def add_feature_columns(
     if add_freq:
         d = add_freq_bin(d, nbins=freq_bins)
     return d
+
 
 def _load_observatory_map(
     observatory_path: str | Path | None,

@@ -15,6 +15,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+
 def scan_transients(
     df: pd.DataFrame,
     *,
@@ -104,7 +105,7 @@ def scan_transients(
 
         A = np.sum(ww * f * yy) / denom
 
-        chi2_null = np.sum(ww * (yy ** 2))
+        chi2_null = np.sum(ww * (yy**2))
         chi2_model = np.sum(ww * ((yy - A * f) ** 2))
         delta = chi2_null - chi2_model
 
@@ -137,7 +138,7 @@ def scan_transients(
             z_pt[in_win] = np.where(good, np.abs(model) / sig, np.nan)
         member = in_win.copy()
         if np.isfinite(member_eta):
-            member &= (z_pt >= float(member_eta))
+            member &= z_pt >= float(member_eta)
         d.loc[member, "transient_id"] = k
         d.loc[member, "transient_amp"] = A
         d.loc[member, "transient_t0"] = t0
@@ -154,11 +155,17 @@ def scan_transients(
                 )
                 try:
                     from pqc.utils.logging import info
+
                     info(info_str)
                     if np.mean(zf < 1.0) > 0.5:
                         from pqc.utils.logging import warn
-                        warn("Transient membership has >50% members with z_pt<1.0; check membership criteria.")
-                except Exception:
-                    pass
+
+                        warn(
+                            "Transient membership has >50% members with z_pt<1.0; check membership criteria."
+                        )
+                except Exception as exc:
+                    from pqc.utils.logging import warn
+
+                    warn(f"Transient instrumentation logging failed: {exc}")
 
     return d

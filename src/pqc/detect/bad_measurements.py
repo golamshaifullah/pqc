@@ -15,6 +15,7 @@ import pandas as pd
 from pqc.detect.ou import estimate_q, ou_innovations_z
 from pqc.utils.stats import norm_abs_sf, bh_fdr
 
+
 def detect_bad(
     df: pd.DataFrame,
     *,

@@ -11,6 +11,7 @@ See Also:
 from __future__ import annotations
 import pandas as pd
 
+
 def merge_time_and_meta(
     df_time: pd.DataFrame,
     df_meta: pd.DataFrame,
@@ -48,7 +49,8 @@ def merge_time_and_meta(
     dm = dm.sort_values("mjd").reset_index(drop=True)
 
     merged = pd.merge_asof(
-        dt, dm,
+        dt,
+        dm,
         on="mjd",
         direction="nearest",
         tolerance=float(tol_days),

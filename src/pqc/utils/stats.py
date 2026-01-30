@@ -8,6 +8,7 @@ from __future__ import annotations
 import numpy as np
 from math import erfc
 
+
 def norm_abs_sf(x: np.ndarray) -> np.ndarray:
     """Return survival probabilities for ``|Z|`` where ``Z ~ N(0,1)``.
 
@@ -27,6 +28,7 @@ def norm_abs_sf(x: np.ndarray) -> np.ndarray:
     """
     x = np.asarray(x, dtype=float)
     return np.vectorize(erfc, otypes=[float])(x / np.sqrt(2.0))
+
 
 def bh_fdr(pvals: np.ndarray, q: float) -> np.ndarray:
     """Apply Benjamini–Hochberg FDR and return discovery mask.
@@ -62,6 +64,7 @@ def bh_fdr(pvals: np.ndarray, q: float) -> np.ndarray:
     cutoff = p_sorted[k]
     return p <= cutoff
 
+
 def robust_scale_mad(x: np.ndarray) -> float:
     """Estimate scale using the median absolute deviation (MAD).
 
@@ -82,6 +85,7 @@ def robust_scale_mad(x: np.ndarray) -> float:
     med = np.median(x)
     mad = np.median(np.abs(x - med))
     return 1.4826 * mad if mad > 0 else float(np.std(x))
+
 
 def chi2_sf_approx(chi2: float, dof: int) -> float:
     """Approximate chi-square survival function using Wilson-Hilferty transform.

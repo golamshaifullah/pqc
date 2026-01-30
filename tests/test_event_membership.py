@@ -1,7 +1,15 @@
 import numpy as np
 import pandas as pd
 
-from pqc.config import BadMeasConfig, TransientConfig, StructureConfig, StepConfig, RobustOutlierConfig, PreprocConfig, OutlierGateConfig
+from pqc.config import (
+    BadMeasConfig,
+    TransientConfig,
+    StructureConfig,
+    StepConfig,
+    RobustOutlierConfig,
+    PreprocConfig,
+    OutlierGateConfig,
+)
 from pqc.pipeline import _run_detection_stage
 
 
@@ -25,7 +33,7 @@ def _make_event_df():
     # DM step (amp in y-space -> residual = amp / freq^2)
     t0_dm = mjd[14]
     dm_amp = 40000.0
-    dm = np.where(mjd >= t0_dm, dm_amp / (freq ** 2), 0.0)
+    dm = np.where(mjd >= t0_dm, dm_amp / (freq**2), 0.0)
 
     resid = transient + step + dm
 
@@ -53,10 +61,16 @@ def test_event_membership_not_bad_point():
     df, bad_idx = _make_event_df()
 
     bad_cfg = BadMeasConfig(tau_corr_days=0.0, fdr_q=0.0, mark_only_worst_per_day=True)
-    tr_cfg = TransientConfig(tau_rec_days=2.0, window_mult=5.0, min_points=4, delta_chi2_thresh=0.1, member_eta=2.0)
+    tr_cfg = TransientConfig(
+        tau_rec_days=2.0, window_mult=5.0, min_points=4, delta_chi2_thresh=0.1, member_eta=2.0
+    )
     struct_cfg = StructureConfig(mode="none")
-    step_cfg = StepConfig(enabled=True, min_points=3, delta_chi2_thresh=0.1, member_eta=2.0, member_tmax_days=5.0)
-    dm_cfg = StepConfig(enabled=True, min_points=3, delta_chi2_thresh=0.1, member_eta=2.0, member_tmax_days=5.0)
+    step_cfg = StepConfig(
+        enabled=True, min_points=3, delta_chi2_thresh=0.1, member_eta=2.0, member_tmax_days=5.0
+    )
+    dm_cfg = StepConfig(
+        enabled=True, min_points=3, delta_chi2_thresh=0.1, member_eta=2.0, member_tmax_days=5.0
+    )
     robust_cfg = RobustOutlierConfig(enabled=True, z_thresh=6.0, scope="backend")
 
     out = _run_detection_stage(
@@ -107,9 +121,18 @@ def test_global_step_membership_group_specific():
         df,
         backend_col="group",
         bad_cfg=BadMeasConfig(tau_corr_days=0.0, fdr_q=0.0, mark_only_worst_per_day=True),
-        tr_cfg=TransientConfig(tau_rec_days=2.0, window_mult=5.0, min_points=4, delta_chi2_thresh=0.1, member_eta=2.0),
+        tr_cfg=TransientConfig(
+            tau_rec_days=2.0, window_mult=5.0, min_points=4, delta_chi2_thresh=0.1, member_eta=2.0
+        ),
         struct_cfg=StructureConfig(mode="none"),
-        step_cfg=StepConfig(enabled=True, min_points=3, delta_chi2_thresh=0.1, member_eta=2.0, member_tmax_days=5.0, scope="global"),
+        step_cfg=StepConfig(
+            enabled=True,
+            min_points=3,
+            delta_chi2_thresh=0.1,
+            member_eta=2.0,
+            member_tmax_days=5.0,
+            scope="global",
+        ),
         dm_cfg=StepConfig(enabled=False),
         robust_cfg=RobustOutlierConfig(enabled=False),
         preproc_cfg=PreprocConfig(),
@@ -153,7 +176,14 @@ def test_global_transient_membership_group_specific():
         df,
         backend_col="group",
         bad_cfg=BadMeasConfig(tau_corr_days=0.0, fdr_q=0.0, mark_only_worst_per_day=True),
-        tr_cfg=TransientConfig(tau_rec_days=tau, window_mult=5.0, min_points=4, delta_chi2_thresh=0.1, member_eta=2.0, scope="global"),
+        tr_cfg=TransientConfig(
+            tau_rec_days=tau,
+            window_mult=5.0,
+            min_points=4,
+            delta_chi2_thresh=0.1,
+            member_eta=2.0,
+            scope="global",
+        ),
         struct_cfg=StructureConfig(mode="none"),
         step_cfg=StepConfig(enabled=False),
         dm_cfg=StepConfig(enabled=False),
@@ -194,9 +224,18 @@ def test_global_step_applicable_not_informative():
         df,
         backend_col="group",
         bad_cfg=BadMeasConfig(tau_corr_days=0.0, fdr_q=0.0, mark_only_worst_per_day=True),
-        tr_cfg=TransientConfig(tau_rec_days=2.0, window_mult=5.0, min_points=4, delta_chi2_thresh=0.1, member_eta=2.0),
+        tr_cfg=TransientConfig(
+            tau_rec_days=2.0, window_mult=5.0, min_points=4, delta_chi2_thresh=0.1, member_eta=2.0
+        ),
         struct_cfg=StructureConfig(mode="none"),
-        step_cfg=StepConfig(enabled=True, min_points=3, delta_chi2_thresh=0.1, member_eta=1.0, member_tmax_days=10.0, scope="global"),
+        step_cfg=StepConfig(
+            enabled=True,
+            min_points=3,
+            delta_chi2_thresh=0.1,
+            member_eta=1.0,
+            member_tmax_days=10.0,
+            scope="global",
+        ),
         dm_cfg=StepConfig(enabled=False),
         robust_cfg=RobustOutlierConfig(enabled=False),
         preproc_cfg=PreprocConfig(),

@@ -3,6 +3,7 @@ import pandas as pd
 
 from pqc.detect.feature_structure import detect_binned_structure, detrend_residuals_binned
 
+
 def test_detect_binned_structure_zero_signal():
     df = pd.DataFrame(
         {
@@ -15,6 +16,7 @@ def test_detect_binned_structure_zero_signal():
     assert res["dof"] > 0
     assert np.isfinite(res["chi2"])
     assert res["chi2"] < 1e-6
+
 
 def test_detrend_residuals_binned_removes_bin_means():
     x = np.concatenate([np.zeros(10), np.ones(10)])

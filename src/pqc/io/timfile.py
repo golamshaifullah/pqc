@@ -36,6 +36,7 @@ COMMENT_TOKENS: set[str] = {"C", "#"}
 CONTROL_KEYWORDS: set[str] = {"MODE", "FORMAT", "EFAC", "EQUAD", "JUMP"}
 """Tempo2 timfile control keywords that are ignored by the parser."""
 
+
 def _is_number(tok: str) -> bool:
     """Return True if a token parses as a float.
 
@@ -51,6 +52,7 @@ def _is_number(tok: str) -> bool:
     except Exception:
         return False
 
+
 def _is_flag_name(tok: str) -> bool:
     """Return True for flag-name tokens (e.g., ``-sys``), not numeric values.
 
@@ -62,6 +64,7 @@ def _is_flag_name(tok: str) -> bool:
     """
     return tok.startswith("-") and not _is_number(tok)
 
+
 @dataclass
 class TimParseResult:
     """Hold the result of parsing timfiles.
@@ -72,10 +75,12 @@ class TimParseResult:
         commented_lines (int): Count of comment lines (C or #).
         control_lines (int): Count of control/keyword lines (e.g., MODE/FORMAT).
     """
+
     df: pd.DataFrame
     dropped_lines: int
     commented_lines: int
     control_lines: int
+
 
 def parse_all_timfiles(
     all_timfile: str | Path,
