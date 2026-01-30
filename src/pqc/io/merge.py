@@ -113,4 +113,31 @@ def merge_time_and_meta(
                         merged.loc[mask_unmatched, meta_col] = merged2[
                             meta_col
                         ].reindex(merged.loc[mask_unmatched].index)
+
+    # Final fallback: if sat-based matching left gaps, try plain MJD matching.
+    if "_timfile" in merged.columns and "mjd" in dm.columns:
+        mask_unmatched = merged["_timfile"].isna()
+        if mask_unmatched.any():
+            dt3 = dt.loc[mask_unmatched].copy()
+            dm3 = dm.copy()
+            dt3 = dt3.loc[dt3["mjd"].notna()].copy()
+            dm3 = dm3.loc[dm3["mjd"].notna()].copy()
+            if not dt3.empty and not dm3.empty:
+                dt3 = dt3.sort_values("mjd").reset_index(drop=True)
+                dm3 = dm3.sort_values("mjd").reset_index(drop=True)
+                merged3 = pd.merge_asof(
+                    dt3,
+                    dm3,
+                    on="mjd",
+                    direction="nearest",
+                    tolerance=float(tol_days),
+                    suffixes=("", "_meta"),
+                )
+                # Fill only rows still missing metadata.
+                for col in dm.columns:
+                    meta_col = f"{col}_meta" if col in dt.columns else col
+                    if meta_col in merged.columns and meta_col in merged3.columns:
+                        merged.loc[mask_unmatched, meta_col] = merged3[
+                            meta_col
+                        ].reindex(merged.loc[mask_unmatched].index)
     return merged
