@@ -11,6 +11,9 @@ Basic run
 
    pqc --par /path/to/pulsar.par --out out.csv
 
+This writes a settings file alongside the CSV unless you override it with
+``--settings-out``.
+
 Custom thresholds
 -----------------
 
@@ -22,6 +25,15 @@ Custom thresholds
      --fdr-q 0.02 \
      --tau-rec-days 10 \
      --delta-chi2 30
+
+Logging
+-------
+
+.. code-block:: bash
+
+   pqc --par /path/to/pulsar.par --out out.csv \
+     --log-level DEBUG \
+     --log-format "%(levelname)s:%(message)s"
 
 Statistical knobs (what they mean)
 ----------------------------------
@@ -61,6 +73,14 @@ Preprocessing for selected detectors
      --rescale-feature solar_elongation_deg \
      --condition-on group,freq_bin \
      --use-preproc-for ou,transient
+
+Settings output
+---------------
+
+.. code-block:: bash
+
+   pqc --par /path/to/pulsar.par --out out.csv \
+     --settings-out results/run_settings.toml
 
 References
 ----------

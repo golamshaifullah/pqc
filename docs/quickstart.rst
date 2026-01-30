@@ -1,21 +1,52 @@
 Quickstart
 ==========
 
-CLI
----
+Before you start
+----------------
+
+PQC expects a ``.par`` file and a sibling ``*_all.tim`` file produced by
+tempo2. Example: ``J1909-3744.par`` and ``J1909-3744_all.tim`` in the same
+directory.
+
+CLI (fastest path)
+------------------
 
 .. code-block:: bash
 
-   pqc --par /path/to/pulsar.par --out out.csv
+   pqc --par /path/to/J1909-3744.par --out results/J1909-3744_qc.csv
 
-Python
-------
+This writes:
+
+- the QC CSV output to ``results/J1909-3744_qc.csv``
+- the run settings TOML to ``results/J1909-3744_qc.pqc_settings.toml``
+
+Python (notebook-friendly)
+--------------------------
 
 .. code-block:: python
 
+   import pandas as pd
    from pqc.pipeline import run_pipeline
 
-   df = run_pipeline("/path/to/pulsar.par")
+   df = run_pipeline("/path/to/J1909-3744.par")
+
+   # Quick sanity checks
+   print(df.columns)
+   print(df[["mjd", "resid", "sigma", "bad_point", "event_member"]].head())
+
+Inspect results
+--------------
+
+.. code-block:: python
+
+   # Keep only good points
+   good = df.loc[~df["bad_point"].fillna(False)].copy()
+
+   # Focus on event members (transients/steps)
+   events = df.loc[df["event_member"].fillna(False)].copy()
+
+   # Save a filtered table
+   good.to_csv("results/J1909-3744_qc_good.csv", index=False)
 
 What you get
 ------------
@@ -27,6 +58,10 @@ optional event annotations. Key columns include:
 - ``event_member``: event membership (transient, informative step, informative DM-step)
 - ``step_applicable`` and ``step_informative``
 - ``dm_step_applicable`` and ``dm_step_informative``
+
+If you run via the CLI, a TOML settings file is also written alongside the
+CSV (same filename stem with ``.pqc_settings.toml``). This captures the exact
+configuration used for the run.
 
 Minimal statistical context
 ---------------------------
