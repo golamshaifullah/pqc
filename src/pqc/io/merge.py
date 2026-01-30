@@ -70,6 +70,11 @@ def merge_time_and_meta(
         if mask_unmatched.any():
             dt2 = dt.loc[mask_unmatched].copy()
             dm2 = dm.copy()
+            # Only attempt freq-based matching when frequency is present.
+            dt2 = dt2.loc[dt2["freq"].notna() & dt2["mjd"].notna()].copy()
+            dm2 = dm2.loc[dm2["freq"].notna() & dm2["mjd"].notna()].copy()
+            if dt2.empty or dm2.empty:
+                return merged
             dt2["_freq_bin"] = (dt2["freq"] / float(freq_tol_mhz)).round().astype(int)
             dm2["_freq_bin"] = (dm2["freq"] / float(freq_tol_mhz)).round().astype(int)
             dt2["_orig_idx"] = dt2.index.to_numpy()
