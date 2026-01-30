@@ -51,6 +51,7 @@ from pqc.detect.robust_outliers import detect_robust_outliers
 from pqc.preproc.mean_model import detrend_by_features
 from pqc.preproc.variance_model import rescale_by_feature
 from pqc.utils.logging import info, warn
+from pqc.utils.settings import write_run_settings_toml
 
 _DETECTOR_NAMES = {"ou", "transient", "mad", "step", "dmstep"}
 
@@ -704,6 +705,7 @@ def run_pipeline(
     preproc_cfg: PreprocConfig = PreprocConfig(),
     gate_cfg: OutlierGateConfig = OutlierGateConfig(),
     drop_unmatched: bool = False,
+    settings_out: str | Path | None = None,
 ) -> pd.DataFrame:
     """Run the full PTA QC pipeline for a single pulsar.
 
@@ -730,6 +732,9 @@ def run_pipeline(
             outlier membership.
         drop_unmatched (bool): If True, drop TOAs whose metadata could not be
             matched.
+        settings_out (str | Path | None): Optional TOML path to write the
+            pipeline settings used for this run. If None, a file is created
+            under ``<parfile>/results/<stem>.pqc_settings.toml``.
 
     Returns:
         pandas.DataFrame: Timing, metadata, and QC annotations. The output
@@ -775,6 +780,27 @@ def run_pipeline(
     all_tim = str(parfile).replace(".par", "_all.tim")
     if not Path(all_tim).exists():
         raise FileNotFoundError(all_tim)
+
+    if settings_out is None:
+        results_dir = parfile.parent / "results"
+        results_dir.mkdir(parents=True, exist_ok=True)
+        settings_out = results_dir / f"{parfile.stem}.pqc_settings.toml"
+    write_run_settings_toml(
+        settings_out,
+        parfile=parfile,
+        backend_col=backend_col,
+        drop_unmatched=drop_unmatched,
+        bad_cfg=bad_cfg,
+        tr_cfg=tr_cfg,
+        merge_cfg=merge_cfg,
+        feature_cfg=feature_cfg,
+        struct_cfg=struct_cfg,
+        step_cfg=step_cfg,
+        dm_cfg=dm_cfg,
+        robust_cfg=robust_cfg,
+        preproc_cfg=preproc_cfg,
+        gate_cfg=gate_cfg,
+    )
 
     info("[1/6] Parse timfiles")
     tim_res = parse_all_timfiles(all_tim)

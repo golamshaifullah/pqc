@@ -50,6 +50,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p.add_argument("--par", required=True, help="Path to pulsar .par file. Expects a sibling *_all.tim.")
     p.add_argument("--out", required=True, help="Output CSV path.")
+    p.add_argument("--settings-out", default=None,
+                   help="Optional TOML path to write run settings (default: <parfile>/results/<stem>.pqc_settings.toml).")
 
     p.add_argument("--backend-col", default="group", help="Column used to split backend groups (default: group).")
 
@@ -211,6 +213,7 @@ def main() -> None:
         preproc_cfg=preproc_cfg,
         gate_cfg=gate_cfg,
         drop_unmatched=args.drop_unmatched,
+        settings_out=args.settings_out,
     )
 
     df.to_csv(args.out, index=False)
