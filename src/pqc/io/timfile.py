@@ -89,12 +89,14 @@ class TimParseResult:
         dropped_lines (int): Count of malformed or skipped TOA lines.
         commented_lines (int): Count of comment lines (C or #).
         control_lines (int): Count of control/keyword lines (e.g., MODE/FORMAT).
+        max_time_offset_sec (float): Max absolute TIME offset encountered.
     """
 
     df: pd.DataFrame
     dropped_lines: int
     commented_lines: int
     control_lines: int
+    max_time_offset_sec: float
 
 
 def parse_all_timfiles(
@@ -125,6 +127,7 @@ def parse_all_timfiles(
     dropped = 0
     commented = 0
     control = 0
+    max_time_offset_sec = 0.0
     all_timfile = Path(all_timfile)
     control_keywords = CONTROL_KEYWORDS | set(extra_control_keywords or [])
 
@@ -165,7 +168,8 @@ def parse_all_timfiles(
                             f"Invalid TIME directive in {timfile}:{_lineno}: '{stripped}'. "
                             "Expected a signed float like 'TIME +1.0'."
                         )
-                    time_offset_sec = float(_parse_float(time_str))
+                    time_offset_sec += float(_parse_float(time_str))
+                    max_time_offset_sec = max(max_time_offset_sec, abs(time_offset_sec))
                     continue
 
                 if upper.startswith("INCLUDE"):
@@ -284,6 +288,10 @@ def parse_all_timfiles(
 
                 rows.append(row)
 
+        # If a file ends with a non-zero TIME offset, invert nesting to return to zero.
+        if time_offset_sec != 0.0:
+            max_time_offset_sec = max(max_time_offset_sec, abs(time_offset_sec))
+            time_offset_sec = 0.0
         return time_offset_sec
 
     parse_timfile_recursive(all_timfile.resolve(), time_offset_sec=0.0)
@@ -302,4 +310,5 @@ def parse_all_timfiles(
         dropped_lines=dropped,
         commented_lines=commented,
         control_lines=control,
+        max_time_offset_sec=float(max_time_offset_sec),
     )

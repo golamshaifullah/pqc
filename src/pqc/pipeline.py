@@ -968,6 +968,11 @@ def run_pipeline(
     df_tim = tim_res.df
     if tim_res.dropped_lines:
         warn(f"Dropped {tim_res.dropped_lines} malformed TOA lines while parsing timfiles.")
+    if tim_res.max_time_offset_sec > 0:
+        # Ensure merge tolerance is at least twice the largest TIME offset.
+        auto_tol = 2.0 * float(tim_res.max_time_offset_sec) / 86400.0
+        if auto_tol > merge_cfg.tol_days:
+            merge_cfg = MergeConfig(tol_days=auto_tol, freq_tol_mhz=merge_cfg.freq_tol_mhz)
 
     info("[2/6] Load libstempo")
     df_time = load_libstempo(parfile)
