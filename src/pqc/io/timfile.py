@@ -159,11 +159,6 @@ def parse_all_timfiles(
                             f"Invalid TIME directive in {timfile}:{_lineno}: '{stripped}'. "
                             "Expected 'TIME +1.0' or 'TIME -1.0'."
                         )
-                    if len(parts) > 2 and not parts[2].startswith(("#", "C")):
-                        raise ValueError(
-                            f"Invalid TIME directive in {timfile}:{_lineno}: '{stripped}'. "
-                            "Expected 'TIME +1.0' or 'TIME -1.0' with optional trailing comment."
-                        )
                     time_str = parts[1]
                     if _parse_float(time_str) is None:
                         raise ValueError(
