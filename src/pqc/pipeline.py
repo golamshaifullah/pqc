@@ -982,12 +982,15 @@ def run_pipeline(
 
     n_unmatched = int(df["filename"].isna().sum())
     if n_unmatched:
-        warn(
+        sample_cols = [c for c in ("mjd", "freq", "resid", "sigma") if c in df.columns]
+        sample = df.loc[df["filename"].isna(), sample_cols].head(5)
+        msg = (
             f"{n_unmatched} TOAs unmatched to tim metadata (within tol={merge_cfg.tol_days} days). "
-            + ("Dropping them." if drop_unmatched else "Keeping them with NaN metadata.")
+            "This indicates timfile metadata could not be linked to libstempo TOAs, "
+            "so timfile names would be missing. Sample:\n"
+            f"{sample.to_string(index=False)}"
         )
-        if drop_unmatched:
-            df = df.loc[~df["filename"].isna()].reset_index(drop=True)
+        raise RuntimeError(msg)
 
     info("[4/6] Ensure sys/group")
     df = ensure_sys_group(df)
