@@ -152,10 +152,25 @@ def parse_all_timfiles(
                     continue
 
                 if upper.startswith("TIME"):
-                    if len(parts) < 2 or not _is_number(parts[1]):
-                        dropped += 1
-                        continue
-                    time_offset_sec = float(_parse_float(parts[1]))
+                    # TIME offset applies to subsequent TOAs in this file.
+                    # Only accept compact forms: "TIME +1.0" or "TIME -1.0".
+                    if len(parts) < 2 or parts[1][0] not in {"+", "-"}:
+                        raise ValueError(
+                            f"Invalid TIME directive in {timfile}:{_lineno}: '{stripped}'. "
+                            "Expected 'TIME +1.0' or 'TIME -1.0'."
+                        )
+                    if len(parts) > 2 and not parts[2].startswith(("#", "C")):
+                        raise ValueError(
+                            f"Invalid TIME directive in {timfile}:{_lineno}: '{stripped}'. "
+                            "Expected 'TIME +1.0' or 'TIME -1.0' with optional trailing comment."
+                        )
+                    time_str = parts[1]
+                    if _parse_float(time_str) is None:
+                        raise ValueError(
+                            f"Invalid TIME directive in {timfile}:{_lineno}: '{stripped}'. "
+                            "Expected a signed float like 'TIME +1.0'."
+                        )
+                    time_offset_sec = float(_parse_float(time_str))
                     continue
 
                 if upper.startswith("INCLUDE"):
@@ -185,8 +200,12 @@ def parse_all_timfiles(
                         sat = float(_parse_float(parts[0]))
                         tel_tok = parts[5] if len(parts) >= 6 else ""
                         has_tel = bool(tel_tok) and not _is_flag_name(tel_tok)
+                        sat_raw = sat
+                        sat_corr = sat_raw + time_offset_sec / SECONDS_PER_DAY
                         row = {
-                            "sat": sat,
+                            "sat": sat_corr,
+                            "sat_raw": sat_raw,
+                            "sat_corr": sat_corr,
                             "filename": parts[1],
                             "freq": float(_parse_float(parts[2])),
                             "mjd": float(_parse_float(parts[3])) + time_offset_sec / SECONDS_PER_DAY,
@@ -203,8 +222,12 @@ def parse_all_timfiles(
                         mjd = float(_parse_float(parts[2])) + time_offset_sec / SECONDS_PER_DAY
                         tel_tok = parts[4] if len(parts) >= 5 else ""
                         has_tel = bool(tel_tok) and not _is_flag_name(tel_tok)
+                        sat_raw = mjd
+                        sat_corr = mjd
                         row = {
-                            "sat": mjd,
+                            "sat": sat_corr,
+                            "sat_raw": sat_raw,
+                            "sat_corr": sat_corr,
                             "filename": parts[0],
                             "freq": float(_parse_float(parts[1])),
                             "mjd": mjd,
@@ -234,8 +257,12 @@ def parse_all_timfiles(
                         mjd = float(_parse_float(parts[trip + 1])) + time_offset_sec / SECONDS_PER_DAY
                         tel_tok = parts[trip + 3] if trip + 3 < len(parts) else ""
                         has_tel = bool(tel_tok) and not _is_flag_name(tel_tok)
+                        sat_raw = sat_val if sat_val is not None else mjd
+                        sat_corr = sat_raw + time_offset_sec / SECONDS_PER_DAY
                         row = {
-                            "sat": sat_val if sat_val is not None else mjd,
+                            "sat": sat_corr,
+                            "sat_raw": sat_raw,
+                            "sat_corr": sat_corr,
                             "filename": filename,
                             "freq": float(_parse_float(parts[trip])),
                             "mjd": mjd,

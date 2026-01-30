@@ -49,17 +49,21 @@ def merge_time_and_meta(
     dm = df_meta.copy()
     dt["mjd"] = dt["mjd"].astype("float64")
     dm["mjd"] = dm["mjd"].astype("float64")
-    dt = dt.sort_values("mjd").reset_index(drop=True)
-    dm = dm.sort_values("mjd").reset_index(drop=True)
+    dm["_merge_mjd"] = dm["sat_corr"] if "sat_corr" in dm.columns else dm["mjd"]
+    dt["_merge_mjd"] = dt["mjd"]
+    dt = dt.sort_values("_merge_mjd").reset_index(drop=True)
+    dm = dm.sort_values("_merge_mjd").reset_index(drop=True)
 
     merged = pd.merge_asof(
         dt,
         dm,
-        on="mjd",
+        left_on="_merge_mjd",
+        right_on="_merge_mjd",
         direction="nearest",
         tolerance=float(tol_days),
         suffixes=("", "_meta"),
     )
+    merged = merged.drop(columns=["_merge_mjd"])
     if (
         freq_tol_mhz is not None
         and "_timfile" in merged.columns
@@ -71,8 +75,8 @@ def merge_time_and_meta(
             dt2 = dt.loc[mask_unmatched].copy()
             dm2 = dm.copy()
             # Only attempt freq-based matching when frequency is present.
-            dt2 = dt2.loc[dt2["freq"].notna() & dt2["mjd"].notna()].copy()
-            dm2 = dm2.loc[dm2["freq"].notna() & dm2["mjd"].notna()].copy()
+            dt2 = dt2.loc[dt2["freq"].notna() & dt2["_merge_mjd"].notna()].copy()
+            dm2 = dm2.loc[dm2["freq"].notna() & dm2["_merge_mjd"].notna()].copy()
             if dt2.empty or dm2.empty:
                 return merged
             dt2["_freq_bin"] = (dt2["freq"] / float(freq_tol_mhz)).round().astype(int)
@@ -85,12 +89,13 @@ def merge_time_and_meta(
                 sub_right = dm2.loc[dm2["_freq_bin"] == bin_val]
                 if sub_right.empty:
                     continue
-                sub_left = sub_left.sort_values("mjd").reset_index(drop=True)
-                sub_right = sub_right.sort_values("mjd").reset_index(drop=True)
+                sub_left = sub_left.sort_values("_merge_mjd").reset_index(drop=True)
+                sub_right = sub_right.sort_values("_merge_mjd").reset_index(drop=True)
                 merged2 = pd.merge_asof(
                     sub_left,
                     sub_right,
-                    on="mjd",
+                    left_on="_merge_mjd",
+                    right_on="_merge_mjd",
                     direction="nearest",
                     tolerance=float(tol_days),
                     suffixes=("", "_meta"),
