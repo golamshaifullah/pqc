@@ -5,8 +5,10 @@ detectors. They intentionally avoid SciPy to keep dependencies minimal.
 """
 
 from __future__ import annotations
-import numpy as np
+
 from math import erfc
+
+import numpy as np
 
 
 def norm_abs_sf(x: np.ndarray) -> np.ndarray:

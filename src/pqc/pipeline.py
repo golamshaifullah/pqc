@@ -23,7 +23,9 @@ See Also:
 """
 
 from __future__ import annotations
+
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
@@ -31,25 +33,25 @@ from pqc.config import (
     BadMeasConfig,
     FeatureConfig,
     MergeConfig,
+    OrbitalPhaseCutConfig,
+    OutlierGateConfig,
+    PreprocConfig,
+    RobustOutlierConfig,
+    SolarCutConfig,
+    StepConfig,
     StructureConfig,
     TransientConfig,
-    StepConfig,
-    RobustOutlierConfig,
-    PreprocConfig,
-    OutlierGateConfig,
-    SolarCutConfig,
-    OrbitalPhaseCutConfig,
 )
-from pqc.io.timfile import parse_all_timfiles
-from pqc.io.libstempo_loader import load_libstempo
-from pqc.io.merge import merge_time_and_meta
-from pqc.features.backend_keys import ensure_sys_group
-from pqc.features.feature_extraction import add_feature_columns
 from pqc.detect.bad_measurements import detect_bad
 from pqc.detect.feature_structure import detect_binned_structure, detrend_residuals_binned
-from pqc.detect.transients import scan_transients
-from pqc.detect.step_changes import detect_step, detect_dm_step
 from pqc.detect.robust_outliers import detect_robust_outliers
+from pqc.detect.step_changes import detect_dm_step, detect_step
+from pqc.detect.transients import scan_transients
+from pqc.features.backend_keys import ensure_sys_group
+from pqc.features.feature_extraction import add_feature_columns
+from pqc.io.libstempo_loader import load_libstempo
+from pqc.io.merge import merge_time_and_meta
+from pqc.io.timfile import parse_all_timfiles
 from pqc.preproc.mean_model import detrend_by_features
 from pqc.preproc.variance_model import rescale_by_feature
 from pqc.utils.logging import info, warn
@@ -90,6 +92,8 @@ def _run_detection_stage(
     robust_cfg: RobustOutlierConfig,
     preproc_cfg: PreprocConfig,
     gate_cfg: OutlierGateConfig,
+    solar_cfg: SolarCutConfig,
+    orbital_cfg: OrbitalPhaseCutConfig,
 ) -> pd.DataFrame:
     def _apply_grouped_global_step(
         frame: pd.DataFrame,
@@ -112,7 +116,7 @@ def _run_detection_stage(
         t_all = pd.to_numeric(frame["mjd"], errors="coerce").to_numpy(dtype=float)
         t_end = np.nanmax(t_all) if member_tmax_days is None else (t0 + float(member_tmax_days))
 
-        for g, sub in frame.groupby(group_col):
+        for _g, sub in frame.groupby(group_col):
             idx = sub.index
             t = pd.to_numeric(sub["mjd"], errors="coerce").to_numpy(dtype=float)
             r = pd.to_numeric(sub[resid_col], errors="coerce").to_numpy(dtype=float)
@@ -247,7 +251,7 @@ def _run_detection_stage(
             )
             w_end = window_mult * tau_rec_days
 
-            for g, sub in frame.groupby(group_col):
+            for _g, sub in frame.groupby(group_col):
                 idx = sub.index
                 t = pd.to_numeric(sub["mjd"], errors="coerce").to_numpy(dtype=float)
                 r = pd.to_numeric(sub[resid_col], errors="coerce").to_numpy(dtype=float)
@@ -559,7 +563,7 @@ def _run_detection_stage(
             prefix="robust_global",
         )
 
-    for key, sub in df_work.groupby(backend_col):
+    for _key, sub in df_work.groupby(backend_col):
         sub1 = detect_bad(
             sub,
             tau_corr_days=bad_cfg.tau_corr_days,
@@ -822,18 +826,18 @@ def run_pipeline(
     parfile: str | Path,
     *,
     backend_col: str = "group",
-    bad_cfg: BadMeasConfig = BadMeasConfig(),
-    tr_cfg: TransientConfig = TransientConfig(),
-    merge_cfg: MergeConfig = MergeConfig(),
-    feature_cfg: FeatureConfig = FeatureConfig(),
-    struct_cfg: StructureConfig = StructureConfig(),
-    step_cfg: StepConfig = StepConfig(),
-    dm_cfg: StepConfig = StepConfig(),
-    robust_cfg: RobustOutlierConfig = RobustOutlierConfig(),
-    preproc_cfg: PreprocConfig = PreprocConfig(),
-    gate_cfg: OutlierGateConfig = OutlierGateConfig(),
-    solar_cfg: SolarCutConfig = SolarCutConfig(),
-    orbital_cfg: OrbitalPhaseCutConfig = OrbitalPhaseCutConfig(),
+    bad_cfg: BadMeasConfig | None = None,
+    tr_cfg: TransientConfig | None = None,
+    merge_cfg: MergeConfig | None = None,
+    feature_cfg: FeatureConfig | None = None,
+    struct_cfg: StructureConfig | None = None,
+    step_cfg: StepConfig | None = None,
+    dm_cfg: StepConfig | None = None,
+    robust_cfg: RobustOutlierConfig | None = None,
+    preproc_cfg: PreprocConfig | None = None,
+    gate_cfg: OutlierGateConfig | None = None,
+    solar_cfg: SolarCutConfig | None = None,
+    orbital_cfg: OrbitalPhaseCutConfig | None = None,
     drop_unmatched: bool = False,
     settings_out: str | Path | None = None,
 ) -> pd.DataFrame:
@@ -848,18 +852,21 @@ def run_pipeline(
             ``*_all.tim`` is required and will be discovered by filename
             convention.
         backend_col (str): Column used to group TOAs for per-backend QC.
-        bad_cfg (BadMeasConfig): Configuration for bad-measurement detection.
-        tr_cfg (TransientConfig): Configuration for transient detection.
-        merge_cfg (MergeConfig): Configuration for timfile/TOA matching.
-        feature_cfg (FeatureConfig): Configuration for feature-column extraction.
-        struct_cfg (StructureConfig): Configuration for feature-domain structure
+        bad_cfg (BadMeasConfig | None): Configuration for bad-measurement detection.
+        tr_cfg (TransientConfig | None): Configuration for transient detection.
+        merge_cfg (MergeConfig | None): Configuration for timfile/TOA matching.
+        feature_cfg (FeatureConfig | None): Configuration for feature-column extraction.
+        struct_cfg (StructureConfig | None): Configuration for feature-domain structure
             tests/detrending.
-        step_cfg (StepConfig): Configuration for step-like offsets in residuals.
-        dm_cfg (StepConfig): Configuration for DM-like step offsets (freq-scaled).
-        preproc_cfg (PreprocConfig): Configuration for covariate-conditioned
+        step_cfg (StepConfig | None): Configuration for step-like offsets in residuals.
+        dm_cfg (StepConfig | None): Configuration for DM-like step offsets (freq-scaled).
+        robust_cfg (RobustOutlierConfig | None): Configuration for MAD-based outliers.
+        preproc_cfg (PreprocConfig | None): Configuration for covariate-conditioned
             preprocessing (detrend/rescale) prior to selected detectors.
-        gate_cfg (OutlierGateConfig): Configuration for hard sigma gating of
+        gate_cfg (OutlierGateConfig | None): Configuration for hard sigma gating of
             outlier membership.
+        solar_cfg (SolarCutConfig | None): Configuration for solar elongation cuts.
+        orbital_cfg (OrbitalPhaseCutConfig | None): Configuration for orbital phase cuts.
         drop_unmatched (bool): If True, drop TOAs whose metadata could not be
             matched.
         settings_out (str | Path | None): Optional TOML path to write the
@@ -913,6 +920,30 @@ def run_pipeline(
 
     if settings_out is None:
         settings_out = parfile.with_suffix(".pqc_settings.toml")
+    if bad_cfg is None:
+        bad_cfg = BadMeasConfig()
+    if tr_cfg is None:
+        tr_cfg = TransientConfig()
+    if merge_cfg is None:
+        merge_cfg = MergeConfig()
+    if feature_cfg is None:
+        feature_cfg = FeatureConfig()
+    if struct_cfg is None:
+        struct_cfg = StructureConfig()
+    if step_cfg is None:
+        step_cfg = StepConfig()
+    if dm_cfg is None:
+        dm_cfg = StepConfig()
+    if robust_cfg is None:
+        robust_cfg = RobustOutlierConfig()
+    if preproc_cfg is None:
+        preproc_cfg = PreprocConfig()
+    if gate_cfg is None:
+        gate_cfg = OutlierGateConfig()
+    if solar_cfg is None:
+        solar_cfg = SolarCutConfig()
+    if orbital_cfg is None:
+        orbital_cfg = OrbitalPhaseCutConfig()
     write_run_settings_toml(
         settings_out,
         parfile=parfile,
@@ -983,4 +1014,6 @@ def run_pipeline(
         robust_cfg=robust_cfg,
         preproc_cfg=preproc_cfg,
         gate_cfg=gate_cfg,
+        solar_cfg=solar_cfg,
+        orbital_cfg=orbital_cfg,
     )

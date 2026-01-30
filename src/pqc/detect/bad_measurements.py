@@ -10,10 +10,12 @@ See Also:
 """
 
 from __future__ import annotations
+
 import numpy as np
 import pandas as pd
+
 from pqc.detect.ou import estimate_q, ou_innovations_z
-from pqc.utils.stats import norm_abs_sf, bh_fdr
+from pqc.utils.stats import bh_fdr, norm_abs_sf
 
 
 def detect_bad(

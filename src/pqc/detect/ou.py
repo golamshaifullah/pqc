@@ -9,8 +9,11 @@ See Also:
 """
 
 from __future__ import annotations
-from typing import Sequence
+
+from collections.abc import Sequence
+
 import numpy as np
+
 from pqc.utils.stats import robust_scale_mad
 
 

@@ -11,9 +11,9 @@ See Also:
 """
 
 from pqc.features.feature_extraction import (
+    add_altaz_features,
     add_feature_columns,
     add_freq_bin,
-    add_altaz_features,
     add_orbital_phase,
     add_solar_elongation,
 )

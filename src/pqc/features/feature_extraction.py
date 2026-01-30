@@ -11,8 +11,9 @@ See Also:
 
 from __future__ import annotations
 
-from pathlib import Path
 import re
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
@@ -103,9 +104,9 @@ def add_solar_elongation(
     """
     d = df.copy()
     try:
-        from astropy.time import Time
-        from astropy.coordinates import SkyCoord, get_sun
         import astropy.units as u
+        from astropy.coordinates import SkyCoord, get_sun
+        from astropy.time import Time
     except Exception:
         warn("Astropy is not available; solar elongation will be NaN.")
         d["solar_elongation_deg"] = np.nan
@@ -174,9 +175,9 @@ def add_altaz_features(
             d[col] = np.nan
 
     try:
-        from astropy.time import Time
-        from astropy.coordinates import SkyCoord, EarthLocation, AltAz
         import astropy.units as u
+        from astropy.coordinates import AltAz, EarthLocation, SkyCoord
+        from astropy.time import Time
     except Exception:
         warn("Astropy is not available; elevation/airmass/parallactic angle will be NaN.")
         return d

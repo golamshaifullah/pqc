@@ -1,11 +1,12 @@
 import builtins
+
 import numpy as np
 import pandas as pd
 
 from pqc.features.feature_extraction import (
+    add_altaz_features,
     add_orbital_phase,
     add_solar_elongation,
-    add_altaz_features,
 )
 
 

@@ -3,12 +3,12 @@ import pandas as pd
 
 from pqc.config import (
     BadMeasConfig,
-    TransientConfig,
-    StructureConfig,
-    StepConfig,
-    RobustOutlierConfig,
-    PreprocConfig,
     OutlierGateConfig,
+    PreprocConfig,
+    RobustOutlierConfig,
+    StepConfig,
+    StructureConfig,
+    TransientConfig,
 )
 from pqc.pipeline import _run_detection_stage
 

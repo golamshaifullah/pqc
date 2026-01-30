@@ -1,6 +1,7 @@
 """Provide minimal logging helpers for CLI-style output."""
 
 from __future__ import annotations
+
 import logging
 
 _LOGGER = logging.getLogger("pqc")

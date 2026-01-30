@@ -23,8 +23,10 @@ See Also:
 """
 
 from __future__ import annotations
+
 from dataclasses import dataclass
 from pathlib import Path
+
 import pandas as pd
 
 SECONDS_PER_DAY: float = 86400.0
@@ -118,7 +120,7 @@ def parse_all_timfiles(
         base_dir = timfile.parent
 
         with open(timfile) as f:
-            for lineno, raw in enumerate(f, start=1):
+            for _lineno, raw in enumerate(f, start=1):
                 stripped = raw.lstrip().strip()
                 if not stripped:
                     continue

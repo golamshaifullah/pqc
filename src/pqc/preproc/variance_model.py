@@ -53,7 +53,7 @@ def rescale_by_feature(
     groups = [c for c in group_cols if c in d.columns]
     grouped = d.groupby(groups, dropna=False) if groups else [((), d)]
 
-    for key, sub in grouped:
+    for _key, sub in grouped:
         idx = sub.index
         x = pd.to_numeric(sub[feature], errors="coerce").to_numpy(dtype=float)
         y = pd.to_numeric(sub[resid_col], errors="coerce").to_numpy(dtype=float)

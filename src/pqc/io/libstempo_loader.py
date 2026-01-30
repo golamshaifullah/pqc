@@ -10,10 +10,12 @@ See Also:
 """
 
 from __future__ import annotations
+
 from pathlib import Path
+
+import libstempo as lt
 import numpy as np
 import pandas as pd
-import libstempo as lt
 
 
 def load_libstempo(parfile: str | Path) -> pd.DataFrame:
