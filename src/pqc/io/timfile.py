@@ -166,7 +166,8 @@ def parse_all_timfiles(
                     inc_path = (base_dir / inc).resolve()
                     if not inc_path.exists():
                         raise FileNotFoundError(str(inc_path))
-                    time_offset_sec = parse_timfile_recursive(inc_path, time_offset_sec)
+                    # Do not leak TIME offsets from included files back into the parent.
+                    _ = parse_timfile_recursive(inc_path, time_offset_sec)
                     continue
 
                 # TOA: filename freq mjd toaerr tel [flags...]
