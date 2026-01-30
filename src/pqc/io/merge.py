@@ -79,25 +79,33 @@ def merge_time_and_meta(
             dm2["_freq_bin"] = (dm2["freq"] / float(freq_tol_mhz)).round().astype(int)
             dt2["_orig_idx"] = dt2.index.to_numpy()
 
-            dt2 = dt2.sort_values(["_freq_bin", "mjd"]).reset_index(drop=True)
-            dm2 = dm2.sort_values(["_freq_bin", "mjd"]).reset_index(drop=True)
+            # Per-bin merge avoids global sorting constraints.
+            out_frames = []
+            for bin_val, sub_left in dt2.groupby("_freq_bin", sort=True):
+                sub_right = dm2.loc[dm2["_freq_bin"] == bin_val]
+                if sub_right.empty:
+                    continue
+                sub_left = sub_left.sort_values("mjd").reset_index(drop=True)
+                sub_right = sub_right.sort_values("mjd").reset_index(drop=True)
+                merged2 = pd.merge_asof(
+                    sub_left,
+                    sub_right,
+                    on="mjd",
+                    direction="nearest",
+                    tolerance=float(tol_days),
+                    suffixes=("", "_meta"),
+                )
+                out_frames.append(merged2)
 
-            merged2 = pd.merge_asof(
-                dt2,
-                dm2,
-                on="mjd",
-                by="_freq_bin",
-                direction="nearest",
-                tolerance=float(tol_days),
-                suffixes=("", "_meta"),
-            )
-            merged2 = merged2.set_index("_orig_idx")
+            if out_frames:
+                merged2 = pd.concat(out_frames, ignore_index=True)
+                merged2 = merged2.set_index("_orig_idx")
 
-            # Fill only rows still missing metadata.
-            for col in dm.columns:
-                meta_col = f"{col}_meta" if col in dt.columns else col
-                if meta_col in merged.columns and meta_col in merged2.columns:
-                    merged.loc[mask_unmatched, meta_col] = merged2[meta_col].reindex(
-                        merged.loc[mask_unmatched].index
-                    )
+                # Fill only rows still missing metadata.
+                for col in dm.columns:
+                    meta_col = f"{col}_meta" if col in dt.columns else col
+                    if meta_col in merged.columns and meta_col in merged2.columns:
+                        merged.loc[mask_unmatched, meta_col] = merged2[
+                            meta_col
+                        ].reindex(merged.loc[mask_unmatched].index)
     return merged

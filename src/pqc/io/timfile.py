@@ -198,24 +198,53 @@ def parse_all_timfiles(
                         i = 6 if has_tel else 5
 
                 if row is None:
-                    if not (_is_number(parts[1]) and _is_number(parts[2]) and _is_number(parts[3])):
-                        dropped += 1
-                        continue
-                    mjd = float(_parse_float(parts[2])) + time_offset_sec / SECONDS_PER_DAY
-                    tel_tok = parts[4] if len(parts) >= 5 else ""
-                    has_tel = bool(tel_tok) and not _is_flag_name(tel_tok)
-                    row = {
-                        "sat": mjd,
-                        "filename": parts[0],
-                        "freq": float(_parse_float(parts[1])),
-                        "mjd": mjd,
-                        "toaerr_tim": float(_parse_float(parts[3])),
-                        "tel": tel_tok if has_tel else "",
-                        "_timfile": str(timfile),
-                        "_timfile_base": timfile.name,
-                        "_time_offset_sec": float(time_offset_sec),
-                    }
-                    i = 5 if has_tel else 4
+                    if _is_number(parts[1]) and _is_number(parts[2]) and _is_number(parts[3]):
+                        mjd = float(_parse_float(parts[2])) + time_offset_sec / SECONDS_PER_DAY
+                        tel_tok = parts[4] if len(parts) >= 5 else ""
+                        has_tel = bool(tel_tok) and not _is_flag_name(tel_tok)
+                        row = {
+                            "sat": mjd,
+                            "filename": parts[0],
+                            "freq": float(_parse_float(parts[1])),
+                            "mjd": mjd,
+                            "toaerr_tim": float(_parse_float(parts[3])),
+                            "tel": tel_tok if has_tel else "",
+                            "_timfile": str(timfile),
+                            "_timfile_base": timfile.name,
+                            "_time_offset_sec": float(time_offset_sec),
+                        }
+                        i = 5 if has_tel else 4
+                    else:
+                        # Fallback: find 3 consecutive numeric tokens (freq, mjd, err)
+                        num_idx = [j for j, tok in enumerate(parts) if _is_number(tok)]
+                        trip = None
+                        for j in num_idx:
+                            if j + 2 < len(parts) and _is_number(parts[j + 1]) and _is_number(parts[j + 2]):
+                                trip = j
+                                break
+                        if trip is None or trip == 0:
+                            dropped += 1
+                            continue
+                        fname_idx = trip - 1
+                        filename = parts[fname_idx]
+                        sat_val = None
+                        if fname_idx - 1 >= 0 and _is_number(parts[fname_idx - 1]):
+                            sat_val = float(_parse_float(parts[fname_idx - 1]))
+                        mjd = float(_parse_float(parts[trip + 1])) + time_offset_sec / SECONDS_PER_DAY
+                        tel_tok = parts[trip + 3] if trip + 3 < len(parts) else ""
+                        has_tel = bool(tel_tok) and not _is_flag_name(tel_tok)
+                        row = {
+                            "sat": sat_val if sat_val is not None else mjd,
+                            "filename": filename,
+                            "freq": float(_parse_float(parts[trip])),
+                            "mjd": mjd,
+                            "toaerr_tim": float(_parse_float(parts[trip + 2])),
+                            "tel": tel_tok if has_tel else "",
+                            "_timfile": str(timfile),
+                            "_timfile_base": timfile.name,
+                            "_time_offset_sec": float(time_offset_sec),
+                        }
+                        i = (trip + 4) if has_tel else (trip + 3)
 
                 while i < len(parts):
                     tok = parts[i]
