@@ -14,8 +14,8 @@ Flag parsing treats negative numeric values (e.g., ``-padd -0.193655``) as
 values rather than flag names by distinguishing flag-name tokens from numbers.
 
 Output columns include ``filename``, ``freq``, ``mjd``, ``sat``,
-``toaerr_tim``, ``tel``, ``_timfile``, ``_time_offset_sec``, plus any ``-flag``
-values as additional columns.
+``toaerr_tim``, ``tel``, ``_timfile``, ``_timfile_base``,
+``_time_offset_sec``, plus any ``-flag`` values as additional columns.
 
 See Also:
     pqc.io.libstempo_loader.load_libstempo: Load timing arrays via libstempo.
@@ -170,6 +170,7 @@ def parse_all_timfiles(
                             "toaerr_tim": float(parts[4]),
                             "tel": parts[5],
                             "_timfile": str(timfile),
+                            "_timfile_base": timfile.name,
                             "_time_offset_sec": float(time_offset_sec),
                         }
                         i = 6
@@ -187,6 +188,7 @@ def parse_all_timfiles(
                         "toaerr_tim": float(parts[3]),
                         "tel": parts[4],
                         "_timfile": str(timfile),
+                        "_timfile_base": timfile.name,
                         "_time_offset_sec": float(time_offset_sec),
                     }
                     i = 5

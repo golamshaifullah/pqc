@@ -21,7 +21,7 @@ KNOWN_TELS: set[str] = {"EFF", "JBO", "NRT", "WSRT", "SRT", "LEAP"}
 """Known telescope identifiers used for timfile-derived keys."""
 
 def parse_timfile_triplet(timfile_path: str) -> tuple[str | None, str | None, float | None]:
-    """Parse ``TEL.BACKEND.BANDFREQ`` from a timfile basename.
+    """Parse ``TEL[.BACKEND][.BANDFREQ]`` from a timfile basename.
 
     Args:
         timfile_path (str): Path or basename of the timfile.
@@ -35,16 +35,30 @@ def parse_timfile_triplet(timfile_path: str) -> tuple[str | None, str | None, fl
         ('EFF', 'PX')
     """
     base = os.path.basename(str(timfile_path)).strip()
+    if base.lower().endswith("_all.tim"):
+        return None, None, None
     name = base[:-4] if base.endswith(".tim") else base
     parts = name.split(".")
-    if len(parts) >= 3 and parts[0] in KNOWN_TELS:
-        tel = parts[0]
-        backend = parts[1]
-        try:
-            band = float(parts[2])
-        except ValueError:
+    if len(parts) >= 1:
+        tel = parts[0].upper()
+        if tel in KNOWN_TELS:
+            backend = None
             band = None
-        return tel, backend, band
+            if len(parts) >= 3:
+                backend = parts[1]
+                band_part = parts[2]
+                try:
+                    band = float(band_part)
+                except ValueError:
+                    band = None
+            elif len(parts) == 2:
+                part = parts[1]
+                try:
+                    band = float(part)
+                except ValueError:
+                    backend = part
+                    band = None
+            return tel, backend, band
     return None, None, None
 
 def ensure_sys_group(df: pd.DataFrame) -> pd.DataFrame:
@@ -78,16 +92,28 @@ def ensure_sys_group(df: pd.DataFrame) -> pd.DataFrame:
     sys_out = []
     group_out = []
 
+    def _is_placeholder(val: object) -> bool:
+        if pd.isna(val):
+            return True
+        return str(val).upper().startswith("UNK")
+
     for _, row in d.iterrows():
         sys_val = row.get("sys")
         grp_val = row.get("group")
 
-        if pd.notna(sys_val) and pd.notna(grp_val):
+        sys_missing = _is_placeholder(sys_val)
+        grp_missing = _is_placeholder(grp_val)
+        if (not sys_missing) and (not grp_missing):
             sys_out.append(str(sys_val))
             group_out.append(str(grp_val))
             continue
 
-        tel, backend, band = parse_timfile_triplet(row.get("_timfile", ""))
+        timfile_guess = row.get("_timfile_base") or row.get("_timfile", "")
+        tel, backend, band = parse_timfile_triplet(timfile_guess)
+        if tel is None:
+            fname = row.get("filename")
+            if isinstance(fname, str) and fname.lower().endswith(".tim"):
+                tel, backend, band = parse_timfile_triplet(fname)
 
         if tel is None:
             for col in ("sys", "group"):
@@ -123,9 +149,9 @@ def ensure_sys_group(df: pd.DataFrame) -> pd.DataFrame:
             elif ch_mhz is not None:
                 band_mhz = ch_mhz
 
-        if pd.isna(sys_val):
+        if sys_missing:
             sys_val = f"{tel}.{backend}.{ch_mhz if ch_mhz is not None else 'UNK'}"
-        if pd.isna(grp_val):
+        if grp_missing:
             grp_val = f"{tel}.{backend}.{band_mhz if band_mhz is not None else 'UNK'}"
 
         sys_out.append(str(sys_val))
