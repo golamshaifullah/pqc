@@ -22,6 +22,7 @@ See Also:
 
 from __future__ import annotations
 import argparse
+from pathlib import Path
 from pqc.pipeline import run_pipeline
 from pqc.config import BadMeasConfig, FeatureConfig, MergeConfig, StructureConfig, TransientConfig, StepConfig, PreprocConfig, OutlierGateConfig
 from pqc.utils.diagnostics import export_structure_table
@@ -51,7 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--par", required=True, help="Path to pulsar .par file. Expects a sibling *_all.tim.")
     p.add_argument("--out", required=True, help="Output CSV path.")
     p.add_argument("--settings-out", default=None,
-                   help="Optional TOML path to write run settings (default: <parfile>/results/<stem>.pqc_settings.toml).")
+                   help="Optional TOML path to write run settings (default: alongside --out, with .pqc_settings.toml suffix).")
 
     p.add_argument("--backend-col", default="group", help="Column used to split backend groups (default: group).")
 
@@ -139,6 +140,10 @@ def main() -> None:
         >>> # pqc --par /data/J1909-3744.par --out out.csv
     """
     args = build_parser().parse_args()
+    settings_out = args.settings_out
+    if settings_out is None:
+        out_path = Path(args.out)
+        settings_out = out_path.with_suffix(".pqc_settings.toml")
 
     merge_cfg = MergeConfig(tol_days=args.tol_seconds / 86400.0)
     bad_cfg = BadMeasConfig(
@@ -213,7 +218,7 @@ def main() -> None:
         preproc_cfg=preproc_cfg,
         gate_cfg=gate_cfg,
         drop_unmatched=args.drop_unmatched,
-        settings_out=args.settings_out,
+        settings_out=settings_out,
     )
 
     df.to_csv(args.out, index=False)

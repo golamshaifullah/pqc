@@ -733,8 +733,8 @@ def run_pipeline(
         drop_unmatched (bool): If True, drop TOAs whose metadata could not be
             matched.
         settings_out (str | Path | None): Optional TOML path to write the
-            pipeline settings used for this run. If None, a file is created
-            under ``<parfile>/results/<stem>.pqc_settings.toml``.
+            pipeline settings used for this run. If None, a sibling
+            ``<parfile>/.pqc_settings.toml`` is created.
 
     Returns:
         pandas.DataFrame: Timing, metadata, and QC annotations. The output
@@ -782,9 +782,7 @@ def run_pipeline(
         raise FileNotFoundError(all_tim)
 
     if settings_out is None:
-        results_dir = parfile.parent / "results"
-        results_dir.mkdir(parents=True, exist_ok=True)
-        settings_out = results_dir / f"{parfile.stem}.pqc_settings.toml"
+        settings_out = parfile.with_suffix(".pqc_settings.toml")
     write_run_settings_toml(
         settings_out,
         parfile=parfile,
