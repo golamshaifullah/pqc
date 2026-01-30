@@ -39,6 +39,23 @@ CONTROL_KEYWORDS: set[str] = {"MODE", "FORMAT", "EFAC", "EQUAD", "JUMP"}
 """Tempo2 timfile control keywords that are ignored by the parser."""
 
 
+def _parse_float(tok: str) -> float | None:
+    """Parse a float token, tolerating Fortran-style exponents."""
+    s = tok.strip()
+    if not s:
+        return None
+    try:
+        return float(s)
+    except Exception:
+        pass
+    # Fortran D exponent or stray commas
+    s2 = s.replace("D", "E").replace("d", "e").replace(",", "")
+    try:
+        return float(s2)
+    except Exception:
+        return None
+
+
 def _is_number(tok: str) -> bool:
     """Return True if a token parses as a float.
 
@@ -48,11 +65,7 @@ def _is_number(tok: str) -> bool:
     Returns:
         bool: True if ``tok`` parses as a float.
     """
-    try:
-        float(tok)
-        return True
-    except Exception:
-        return False
+    return _parse_float(tok) is not None
 
 
 def _is_flag_name(tok: str) -> bool:
@@ -142,7 +155,7 @@ def parse_all_timfiles(
                     if len(parts) < 2 or not _is_number(parts[1]):
                         dropped += 1
                         continue
-                    time_offset_sec = float(parts[1])
+                    time_offset_sec = float(_parse_float(parts[1]))
                     continue
 
                 if upper.startswith("INCLUDE"):
@@ -158,47 +171,51 @@ def parse_all_timfiles(
 
                 # TOA: filename freq mjd toaerr tel [flags...]
                 # OR:  sat filename freq mjd toaerr tel [flags...]
-                if len(parts) < 5:
+                if len(parts) < 4:
                     dropped += 1
                     continue
 
                 row = None
                 i = 0
 
-                if _is_number(parts[0]) and len(parts) >= 6:
+                if _is_number(parts[0]) and len(parts) >= 5:
                     # sat filename freq mjd toaerr tel [flags...]
                     if _is_number(parts[2]) and _is_number(parts[3]) and _is_number(parts[4]):
-                        sat = float(parts[0])
+                        sat = float(_parse_float(parts[0]))
+                        tel_tok = parts[5] if len(parts) >= 6 else ""
+                        has_tel = bool(tel_tok) and not _is_flag_name(tel_tok)
                         row = {
                             "sat": sat,
                             "filename": parts[1],
-                            "freq": float(parts[2]),
-                            "mjd": float(parts[3]) + time_offset_sec / SECONDS_PER_DAY,
-                            "toaerr_tim": float(parts[4]),
-                            "tel": parts[5],
+                            "freq": float(_parse_float(parts[2])),
+                            "mjd": float(_parse_float(parts[3])) + time_offset_sec / SECONDS_PER_DAY,
+                            "toaerr_tim": float(_parse_float(parts[4])),
+                            "tel": tel_tok if has_tel else "",
                             "_timfile": str(timfile),
                             "_timfile_base": timfile.name,
                             "_time_offset_sec": float(time_offset_sec),
                         }
-                        i = 6
+                        i = 6 if has_tel else 5
 
                 if row is None:
                     if not (_is_number(parts[1]) and _is_number(parts[2]) and _is_number(parts[3])):
                         dropped += 1
                         continue
-                    mjd = float(parts[2]) + time_offset_sec / SECONDS_PER_DAY
+                    mjd = float(_parse_float(parts[2])) + time_offset_sec / SECONDS_PER_DAY
+                    tel_tok = parts[4] if len(parts) >= 5 else ""
+                    has_tel = bool(tel_tok) and not _is_flag_name(tel_tok)
                     row = {
                         "sat": mjd,
                         "filename": parts[0],
-                        "freq": float(parts[1]),
+                        "freq": float(_parse_float(parts[1])),
                         "mjd": mjd,
-                        "toaerr_tim": float(parts[3]),
-                        "tel": parts[4],
+                        "toaerr_tim": float(_parse_float(parts[3])),
+                        "tel": tel_tok if has_tel else "",
                         "_timfile": str(timfile),
                         "_timfile_base": timfile.name,
                         "_time_offset_sec": float(time_offset_sec),
                     }
-                    i = 5
+                    i = 5 if has_tel else 4
 
                 while i < len(parts):
                     tok = parts[i]

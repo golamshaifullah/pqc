@@ -973,7 +973,12 @@ def run_pipeline(
     df_time = load_libstempo(parfile)
 
     info("[3/6] Merge by MJD")
-    df = merge_time_and_meta(df_time, df_tim, tol_days=merge_cfg.tol_days)
+    df = merge_time_and_meta(
+        df_time,
+        df_tim,
+        tol_days=merge_cfg.tol_days,
+        freq_tol_mhz=merge_cfg.freq_tol_mhz,
+    )
 
     n_unmatched = int(df["filename"].isna().sum())
     if n_unmatched:

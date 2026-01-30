@@ -181,6 +181,8 @@ class MergeConfig:
     Attributes:
         tol_days (float): Maximum allowed |ΔMJD| when matching tim metadata to
             TOAs.
+        freq_tol_mhz (float | None): Optional frequency tolerance (MHz) used
+            to refine matching when MJD-only matching fails.
 
     Examples:
         Use a 3-second merge tolerance:
@@ -189,6 +191,7 @@ class MergeConfig:
     """
 
     tol_days: float = 2.0 / 86400.0  # 2 seconds default
+    freq_tol_mhz: float | None = 1.0
 
 
 @dataclass(frozen=True)

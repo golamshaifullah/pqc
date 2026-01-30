@@ -17,6 +17,7 @@ def merge_time_and_meta(
     df_time: pd.DataFrame,
     df_meta: pd.DataFrame,
     tol_days: float,
+    freq_tol_mhz: float | None = None,
 ) -> pd.DataFrame:
     """Merge TOA arrays with timfile metadata using nearest-neighbor MJD.
 
@@ -26,6 +27,8 @@ def merge_time_and_meta(
         df_meta (pandas.DataFrame): Output of
             :func:`pqc.io.timfile.parse_all_timfiles`.
         tol_days (float): Maximum |ΔMJD| tolerance for matching.
+        freq_tol_mhz (float | None): Optional frequency tolerance (MHz) used to
+            refine matching when MJD-only matching fails.
 
     Returns:
         pandas.DataFrame: Tim metadata columns merged onto timing arrays.
@@ -57,4 +60,39 @@ def merge_time_and_meta(
         tolerance=float(tol_days),
         suffixes=("", "_meta"),
     )
+    if (
+        freq_tol_mhz is not None
+        and "_timfile" in merged.columns
+        and "freq" in dt.columns
+        and "freq" in dm.columns
+    ):
+        mask_unmatched = merged["_timfile"].isna()
+        if mask_unmatched.any():
+            dt2 = dt.loc[mask_unmatched].copy()
+            dm2 = dm.copy()
+            dt2["_freq_bin"] = (dt2["freq"] / float(freq_tol_mhz)).round().astype(int)
+            dm2["_freq_bin"] = (dm2["freq"] / float(freq_tol_mhz)).round().astype(int)
+            dt2["_orig_idx"] = dt2.index.to_numpy()
+
+            dt2 = dt2.sort_values(["_freq_bin", "mjd"]).reset_index(drop=True)
+            dm2 = dm2.sort_values(["_freq_bin", "mjd"]).reset_index(drop=True)
+
+            merged2 = pd.merge_asof(
+                dt2,
+                dm2,
+                on="mjd",
+                by="_freq_bin",
+                direction="nearest",
+                tolerance=float(tol_days),
+                suffixes=("", "_meta"),
+            )
+            merged2 = merged2.set_index("_orig_idx")
+
+            # Fill only rows still missing metadata.
+            for col in dm.columns:
+                meta_col = f"{col}_meta" if col in dt.columns else col
+                if meta_col in merged.columns and meta_col in merged2.columns:
+                    merged.loc[mask_unmatched, meta_col] = merged2[meta_col].reindex(
+                        merged.loc[mask_unmatched].index
+                    )
     return merged
