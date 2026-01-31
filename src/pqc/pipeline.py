@@ -31,6 +31,7 @@ import pandas as pd
 
 from pqc.config import (
     BadMeasConfig,
+    ExpDipConfig,
     FeatureConfig,
     MergeConfig,
     OrbitalPhaseCutConfig,
@@ -43,6 +44,7 @@ from pqc.config import (
     TransientConfig,
 )
 from pqc.detect.bad_measurements import detect_bad
+from pqc.detect.exp_dips import scan_exp_dips
 from pqc.detect.feature_structure import detect_binned_structure, detrend_residuals_binned
 from pqc.detect.robust_outliers import detect_robust_outliers
 from pqc.detect.step_changes import detect_dm_step, detect_step
@@ -86,6 +88,7 @@ def _run_detection_stage(
     backend_col: str,
     bad_cfg: BadMeasConfig,
     tr_cfg: TransientConfig,
+    dip_cfg: ExpDipConfig,
     struct_cfg: StructureConfig,
     step_cfg: StepConfig,
     dm_cfg: StepConfig,
@@ -304,6 +307,7 @@ def _run_detection_stage(
                 )
 
         return frame
+
 
     out = []
     do_detrend = struct_cfg.mode in ("detrend", "both")
@@ -555,6 +559,36 @@ def _run_detection_stage(
             member_eta=tr_cfg.member_eta,
         )
 
+    if dip_cfg.scope in ("global", "both"):
+        df_glob = scan_exp_dips(
+            df_work,
+            tau_rec_days=dip_cfg.tau_rec_days,
+            window_mult=dip_cfg.window_mult,
+            min_points=dip_cfg.min_points,
+            delta_chi2_thresh=dip_cfg.delta_chi2_thresh,
+            suppress_overlap=dip_cfg.suppress_overlap,
+            resid_col=tr_resid,
+            sigma_col=tr_sigma,
+            freq_col="freq",
+            exclude_bad_col="bad",
+            member_eta=dip_cfg.member_eta,
+            freq_dependence=dip_cfg.freq_dependence,
+            freq_alpha_min=dip_cfg.freq_alpha_min,
+            freq_alpha_max=dip_cfg.freq_alpha_max,
+            freq_alpha_tol=dip_cfg.freq_alpha_tol,
+            freq_alpha_max_iter=dip_cfg.freq_alpha_max_iter,
+        )
+        rename_map = {
+            "exp_dip_id": "exp_dip_global_id",
+            "exp_dip_amp": "exp_dip_global_amp",
+            "exp_dip_t0": "exp_dip_global_t0",
+            "exp_dip_delta_chi2": "exp_dip_global_delta_chi2",
+            "exp_dip_member": "exp_dip_member",
+        }
+        for src, dst in rename_map.items():
+            if src in df_glob.columns:
+                df_work[dst] = df_glob[src]
+
     if robust_cfg.enabled and robust_cfg.scope in ("global", "both"):
         df_work = detect_robust_outliers(
             df_work,
@@ -709,6 +743,19 @@ def _run_detection_stage(
     if "bad_hard" in df_out.columns:
         df_out["bad_point"] |= df_out["bad_hard"].fillna(False)
 
+    if "exp_dip_member" in df_out.columns:
+        dip_mask = df_out["exp_dip_member"].fillna(False)
+        if "bad_ou" in df_out.columns:
+            df_out.loc[dip_mask, "bad_ou"] = False
+        if "bad_mad" in df_out.columns:
+            df_out.loc[dip_mask, "bad_mad"] = False
+        if "bad_hard" in df_out.columns:
+            df_out.loc[dip_mask, "bad_hard"] = False
+        for col in ("robust_outlier", "robust_global_outlier"):
+            if col in df_out.columns:
+                df_out.loc[dip_mask, col] = False
+        df_out.loc[dip_mask, "bad_point"] = False
+
     df_out["event_member"] = False
     if "transient_id" in df_out.columns:
         df_out["event_member"] |= df_out["transient_id"].fillna(-1).to_numpy() >= 0
@@ -718,6 +765,10 @@ def _run_detection_stage(
         df_out["event_member"] |= df_out["step_informative"].fillna(False).to_numpy()
     if "dm_step_informative" in df_out.columns:
         df_out["event_member"] |= df_out["dm_step_informative"].fillna(False).to_numpy()
+    if "exp_dip_member" in df_out.columns:
+        df_out["event_member"] |= df_out["exp_dip_member"].fillna(False).to_numpy()
+    if "exp_dip_global_id" in df_out.columns:
+        df_out["event_member"] |= df_out["exp_dip_global_id"].fillna(-1).to_numpy() >= 0
     df_out["event_member"] &= ~df_out["bad_point"].fillna(False)
 
     df_out["outlier_any"] = False
@@ -828,6 +879,7 @@ def run_pipeline(
     backend_col: str = "group",
     bad_cfg: BadMeasConfig | None = None,
     tr_cfg: TransientConfig | None = None,
+    dip_cfg: ExpDipConfig | None = None,
     merge_cfg: MergeConfig | None = None,
     feature_cfg: FeatureConfig | None = None,
     struct_cfg: StructureConfig | None = None,
@@ -854,6 +906,7 @@ def run_pipeline(
         backend_col (str): Column used to group TOAs for per-backend QC.
         bad_cfg (BadMeasConfig | None): Configuration for bad-measurement detection.
         tr_cfg (TransientConfig | None): Configuration for transient detection.
+        dip_cfg (ExpDipConfig | None): Configuration for exponential dip detection.
         merge_cfg (MergeConfig | None): Configuration for timfile/TOA matching.
         feature_cfg (FeatureConfig | None): Configuration for feature-column extraction.
         struct_cfg (StructureConfig | None): Configuration for feature-domain structure
@@ -877,7 +930,7 @@ def run_pipeline(
         pandas.DataFrame: Timing, metadata, and QC annotations. The output
         includes the merged timfile metadata plus ``bad``, ``bad_day``, ``z``,
         ``bad_ou``, ``bad_mad``, ``bad_point``, ``event_member``,
-        ``transient_id``, ``step_id``, ``dm_step_id``,
+        ``transient_id``, ``exp_dip_id``, ``exp_dip_member``, ``step_id``, ``dm_step_id``,
         ``step_applicable``, ``step_informative``, ``dm_step_applicable``,
         ``dm_step_informative``, and ``outlier_any``
         (deprecated for plotting/summary). If enabled, feature columns such as
@@ -924,6 +977,8 @@ def run_pipeline(
         bad_cfg = BadMeasConfig()
     if tr_cfg is None:
         tr_cfg = TransientConfig()
+    if dip_cfg is None:
+        dip_cfg = ExpDipConfig()
     if merge_cfg is None:
         merge_cfg = MergeConfig()
     if feature_cfg is None:
@@ -951,6 +1006,7 @@ def run_pipeline(
         drop_unmatched=drop_unmatched,
         bad_cfg=bad_cfg,
         tr_cfg=tr_cfg,
+        dip_cfg=dip_cfg,
         merge_cfg=merge_cfg,
         feature_cfg=feature_cfg,
         struct_cfg=struct_cfg,
@@ -1021,6 +1077,7 @@ def run_pipeline(
         backend_col=backend_col,
         bad_cfg=bad_cfg,
         tr_cfg=tr_cfg,
+        dip_cfg=dip_cfg,
         struct_cfg=struct_cfg,
         step_cfg=step_cfg,
         dm_cfg=dm_cfg,

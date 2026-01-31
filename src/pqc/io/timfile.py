@@ -132,7 +132,7 @@ def parse_all_timfiles(
     control_keywords = CONTROL_KEYWORDS | set(extra_control_keywords or [])
 
     def parse_timfile_recursive(timfile: Path, time_offset_sec: float) -> float:
-        nonlocal dropped, commented, control
+        nonlocal dropped, commented, control, max_time_offset_sec
         base_dir = timfile.parent
 
         with open(timfile) as f:

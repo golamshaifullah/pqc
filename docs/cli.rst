@@ -26,6 +26,19 @@ Custom thresholds
      --tau-rec-days 10 \
      --delta-chi2 30
 
+Exponential dips
+----------------
+
+.. code-block:: bash
+
+   pqc --par /path/to/pulsar.par --out out.csv \
+     --dip-tau-rec-days 30 \
+     --dip-window-mult 5 \
+     --dip-min-points 6 \
+     --dip-delta-chi2 25 \
+     --dip-member-eta 1.0 \
+     --dip-scope backend
+
 Logging
 -------
 

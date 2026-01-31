@@ -27,6 +27,7 @@ from pathlib import Path
 
 from pqc.config import (
     BadMeasConfig,
+    ExpDipConfig,
     FeatureConfig,
     MergeConfig,
     OutlierGateConfig,
@@ -131,6 +132,67 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["backend", "global", "both"],
         default="backend",
         help="Transient detection scope: backend/global/both (default: backend).",
+    )
+
+    p.add_argument(
+        "--dip-tau-rec-days",
+        type=float,
+        default=30.0,
+        help="Exponential dip recovery timescale (days).",
+    )
+    p.add_argument(
+        "--dip-window-mult",
+        type=float,
+        default=5.0,
+        help="Dip window length = window_mult * tau_rec.",
+    )
+    p.add_argument("--dip-min-points", type=int, default=6, help="Minimum points in dip window.")
+    p.add_argument(
+        "--dip-delta-chi2",
+        type=float,
+        default=25.0,
+        help="Delta-chi2 threshold for dip detection.",
+    )
+    p.add_argument(
+        "--dip-member-eta",
+        type=float,
+        default=1.0,
+        help="Per-point SNR threshold for dip membership.",
+    )
+    p.add_argument(
+        "--dip-freq-dependence",
+        action="store_true",
+        help="Fit dip frequency dependence (1/f^alpha).",
+    )
+    p.add_argument(
+        "--dip-freq-alpha-min",
+        type=float,
+        default=0.0,
+        help="Lower bound for fitted alpha in 1/f^alpha.",
+    )
+    p.add_argument(
+        "--dip-freq-alpha-max",
+        type=float,
+        default=4.0,
+        help="Upper bound for fitted alpha in 1/f^alpha.",
+    )
+    p.add_argument(
+        "--dip-freq-alpha-tol",
+        type=float,
+        default=1e-3,
+        help="Optimization tolerance for fitted alpha in 1/f^alpha.",
+    )
+    p.add_argument(
+        "--dip-freq-alpha-max-iter",
+        type=int,
+        default=64,
+        help="Max iterations for fitted alpha in 1/f^alpha.",
+    )
+    p.add_argument(
+        "--dip-scope",
+        choices=["backend", "global", "both"],
+        default="backend",
+        help="Dip detection scope: backend/global/both (default: backend).",
     )
 
     p.add_argument(
@@ -306,6 +368,20 @@ def main() -> None:
         instrument=bool(args.event_instrument),
         scope=args.transient_scope,
     )
+    dip_cfg = ExpDipConfig(
+        tau_rec_days=args.dip_tau_rec_days,
+        window_mult=args.dip_window_mult,
+        min_points=args.dip_min_points,
+        delta_chi2_thresh=args.dip_delta_chi2,
+        suppress_overlap=True,
+        member_eta=args.dip_member_eta,
+        freq_dependence=bool(args.dip_freq_dependence),
+        freq_alpha_min=args.dip_freq_alpha_min,
+        freq_alpha_max=args.dip_freq_alpha_max,
+        freq_alpha_tol=args.dip_freq_alpha_tol,
+        freq_alpha_max_iter=args.dip_freq_alpha_max_iter,
+        scope=args.dip_scope,
+    )
     step_cfg = StepConfig(instrument=bool(args.event_instrument))
     dm_cfg = StepConfig(instrument=bool(args.event_instrument))
     defaults = StructureConfig()
@@ -358,6 +434,7 @@ def main() -> None:
         backend_col=args.backend_col,
         bad_cfg=bad_cfg,
         tr_cfg=tr_cfg,
+        dip_cfg=dip_cfg,
         merge_cfg=merge_cfg,
         feature_cfg=feature_cfg,
         struct_cfg=struct_cfg,

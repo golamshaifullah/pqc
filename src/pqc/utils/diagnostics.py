@@ -77,6 +77,9 @@ def summarize_results(df: pd.DataFrame, backend_col: str = "group") -> None:
 
     if "event_member" in df.columns:
         info(f"Event members: {int(df['event_member'].fillna(False).sum())}")
+    if "exp_dip_id" in df.columns:
+        n_dips = int(df["exp_dip_id"].max() + 1) if len(df) and df["exp_dip_id"].max() >= 0 else 0
+        info(f"Exponential dip events detected (per-backend ids): {n_dips}")
     if "transient_id" in df.columns:
         n_events = (
             int(df["transient_id"].max() + 1) if len(df) and df["transient_id"].max() >= 0 else 0

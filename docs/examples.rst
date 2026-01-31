@@ -148,6 +148,26 @@ Hard sigma gate
        gate_cfg=OutlierGateConfig(enabled=True, sigma_thresh=3.0),
    )
 
+Exponential dip events
+----------------------
+
+.. code-block:: python
+
+   from pqc.config import ExpDipConfig
+
+   df = run_pipeline(
+       "/path/to/pulsar.par",
+       dip_cfg=ExpDipConfig(
+           tau_rec_days=30.0,
+           window_mult=5.0,
+           min_points=6,
+           delta_chi2_thresh=25.0,
+           member_eta=1.0,
+       ),
+   )
+
+   dip_members = df.loc[df["exp_dip_member"].fillna(False)]
+
 References
 ----------
 

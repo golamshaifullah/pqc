@@ -142,6 +142,40 @@ class TransientConfig:
 
 
 @dataclass(frozen=True)
+class ExpDipConfig:
+    """Configure exponential dip detection.
+
+    Attributes:
+        tau_rec_days (float): Recovery timescale for the exponential decay
+            (days).
+        window_mult (float): Window length multiplier relative to
+            ``tau_rec_days``.
+        min_points (int): Minimum points required to consider a candidate
+            window.
+        delta_chi2_thresh (float): Minimum Δχ² to accept a dip candidate.
+        suppress_overlap (bool): If True, prevent overlapping dip assignments.
+        member_eta (float): Per-point membership SNR threshold.
+        freq_dependence (bool): If True, fit dips assuming 1/f^alpha scaling.
+        freq_alpha_min (float): Lower bound for fitted alpha.
+        freq_alpha_max (float): Upper bound for fitted alpha.
+        freq_alpha_tol (float): Tolerance for alpha optimization.
+        freq_alpha_max_iter (int): Max iterations for alpha optimization.
+        scope (str): One of ``backend``, ``global``, or ``both``.
+    """
+    tau_rec_days: float = 30.0
+    window_mult: float = 5.0
+    min_points: int = 6
+    delta_chi2_thresh: float = 25.0
+    suppress_overlap: bool = True
+    member_eta: float = 1.0
+    freq_dependence: bool = True
+    freq_alpha_min: float = 0.0
+    freq_alpha_max: float = 4.0
+    freq_alpha_tol: float = 1e-3
+    freq_alpha_max_iter: int = 64
+    scope: str = "global"
+
+@dataclass(frozen=True)
 class StepConfig:
     """Configure step-like offset detection.
 
