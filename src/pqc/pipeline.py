@@ -98,6 +98,7 @@ def _run_detection_stage(
     gate_cfg: OutlierGateConfig,
     solar_cfg: SolarCutConfig,
     orbital_cfg: OrbitalPhaseCutConfig,
+    eclipse_cfg: EclipseConfig,
 ) -> pd.DataFrame:
     def _apply_grouped_global_step(
         frame: pd.DataFrame,
@@ -768,6 +769,18 @@ def _run_detection_stage(
             if col in df_out.columns:
                 df_out.loc[solar_mask, col] = False
         df_out.loc[solar_mask, "bad_point"] = False
+    if "eclipse_event_member" in df_out.columns:
+        eclipse_mask = df_out["eclipse_event_member"].fillna(False)
+        if "bad_ou" in df_out.columns:
+            df_out.loc[eclipse_mask, "bad_ou"] = False
+        if "bad_mad" in df_out.columns:
+            df_out.loc[eclipse_mask, "bad_mad"] = False
+        if "bad_hard" in df_out.columns:
+            df_out.loc[eclipse_mask, "bad_hard"] = False
+        for col in ("robust_outlier", "robust_global_outlier"):
+            if col in df_out.columns:
+                df_out.loc[eclipse_mask, col] = False
+        df_out.loc[eclipse_mask, "bad_point"] = False
 
     df_out["event_member"] = False
     if "transient_id" in df_out.columns:
@@ -784,11 +797,9 @@ def _run_detection_stage(
         df_out["event_member"] |= df_out["exp_dip_global_id"].fillna(-1).to_numpy() >= 0
     if "solar_event_member" in df_out.columns:
         df_out["event_member"] |= df_out["solar_event_member"].fillna(False).to_numpy()
+    if "eclipse_event_member" in df_out.columns:
+        df_out["event_member"] |= df_out["eclipse_event_member"].fillna(False).to_numpy()
     df_out["event_member"] &= ~df_out["bad_point"].fillna(False)
-
-    df_out["outlier_any"] = False
-    df_out["outlier_any"] |= df_out["bad_point"]
-    df_out["outlier_any"] |= df_out["event_member"]
 
     if solar_cfg.enabled:
         df_out = detect_solar_events(
@@ -813,6 +824,29 @@ def _run_detection_stage(
             freq_alpha_max_iter=solar_cfg.freq_alpha_max_iter,
         )
 
+    if eclipse_cfg.enabled:
+        df_out = detect_eclipse_events(
+            df_out,
+            phase_col="orbital_phase",
+            resid_col=ou_resid,
+            sigma_col=ou_sigma,
+            freq_col="freq",
+            enabled=eclipse_cfg.enabled,
+            center_phase=eclipse_cfg.center_phase,
+            min_points=eclipse_cfg.min_points,
+            width_min=eclipse_cfg.width_min,
+            width_max=eclipse_cfg.width_max,
+            member_eta=eclipse_cfg.member_eta,
+            freq_dependence=eclipse_cfg.freq_dependence,
+            freq_alpha_min=eclipse_cfg.freq_alpha_min,
+            freq_alpha_max=eclipse_cfg.freq_alpha_max,
+            freq_alpha_tol=eclipse_cfg.freq_alpha_tol,
+            freq_alpha_max_iter=eclipse_cfg.freq_alpha_max_iter,
+        )
+
+    df_out["outlier_any"] = False
+    df_out["outlier_any"] |= df_out["bad_point"]
+    df_out["outlier_any"] |= df_out["event_member"]
     if orbital_cfg.enabled:
         if "orbital_phase" not in df_out.columns:
             warn("orbital phase not available; orbital phase cut disabled for this run.")
@@ -881,6 +915,7 @@ def run_pipeline(
     gate_cfg: OutlierGateConfig | None = None,
     solar_cfg: SolarCutConfig | None = None,
     orbital_cfg: OrbitalPhaseCutConfig | None = None,
+    eclipse_cfg: EclipseConfig | None = None,
     drop_unmatched: bool = False,
     settings_out: str | Path | None = None,
 ) -> pd.DataFrame:
@@ -909,8 +944,9 @@ def run_pipeline(
             preprocessing (detrend/rescale) prior to selected detectors.
         gate_cfg (OutlierGateConfig | None): Configuration for hard sigma gating of
             outlier membership.
-        solar_cfg (SolarCutConfig | None): Configuration for solar elongation cuts.
+        solar_cfg (SolarCutConfig | None): Configuration for solar events.
         orbital_cfg (OrbitalPhaseCutConfig | None): Configuration for orbital phase cuts.
+        eclipse_cfg (EclipseConfig | None): Configuration for eclipse events.
         drop_unmatched (bool): If True, drop TOAs whose metadata could not be
             matched.
         settings_out (str | Path | None): Optional TOML path to write the
@@ -991,6 +1027,8 @@ def run_pipeline(
         solar_cfg = SolarCutConfig()
     if orbital_cfg is None:
         orbital_cfg = OrbitalPhaseCutConfig()
+    if eclipse_cfg is None:
+        eclipse_cfg = EclipseConfig()
     write_run_settings_toml(
         settings_out,
         parfile=parfile,
@@ -1009,6 +1047,7 @@ def run_pipeline(
         gate_cfg=gate_cfg,
         solar_cfg=solar_cfg,
         orbital_cfg=orbital_cfg,
+        eclipse_cfg=eclipse_cfg,
     )
 
     info("[1/6] Parse timfiles")

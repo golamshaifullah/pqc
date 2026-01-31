@@ -78,6 +78,7 @@ def write_run_settings_toml(
     gate_cfg: Any,
     solar_cfg: Any,
     orbital_cfg: Any,
+    eclipse_cfg: Any,
 ) -> None:
     """Write pipeline settings to a TOML file (overwrites existing file)."""
     out_path = Path(path)
@@ -101,6 +102,7 @@ def write_run_settings_toml(
         "gate_cfg": _as_dict(gate_cfg),
         "solar_cfg": _as_dict(solar_cfg),
         "orbital_cfg": _as_dict(orbital_cfg),
+        "eclipse_cfg": _as_dict(eclipse_cfg),
     }
 
     with open(out_path, "w", encoding="utf-8") as fp:

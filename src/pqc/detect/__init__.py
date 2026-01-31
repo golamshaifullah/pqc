@@ -11,5 +11,6 @@ See Also:
     pqc.detect.transients: Transient exponential recovery scans.
     pqc.detect.exp_dips: Exponential dip recovery scans.
     pqc.detect.solar_events: Solar elongation event scans.
+    pqc.detect.eclipse_events: Orbital-phase eclipse event scans.
     pqc.detect.feature_structure: Feature-domain structure tests.
 """

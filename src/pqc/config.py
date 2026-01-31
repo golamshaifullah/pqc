@@ -322,3 +322,33 @@ class OrbitalPhaseCutConfig:
     sigma_thresh: float = 3.0
     nbins: int = 18
     min_points: int = 20
+
+
+@dataclass(frozen=True)
+class EclipseConfig:
+    """Configure orbital-phase eclipse event detection.
+
+    Attributes:
+        enabled (bool): Enable eclipse event detection.
+        center_phase (float): Eclipse center phase (0..1).
+        min_points (int): Minimum points for global fit.
+        width_min (float): Lower bound for eclipse width in phase.
+        width_max (float): Upper bound for eclipse width in phase.
+        member_eta (float): Per-point membership SNR threshold.
+        freq_dependence (bool): If True, fit 1/f^alpha dependence.
+        freq_alpha_min (float): Lower bound for fitted alpha.
+        freq_alpha_max (float): Upper bound for fitted alpha.
+        freq_alpha_tol (float): Tolerance for alpha optimization.
+        freq_alpha_max_iter (int): Max iterations for alpha optimization.
+    """
+    enabled: bool = False
+    center_phase: float = 0.25
+    min_points: int = 30
+    width_min: float = 0.01
+    width_max: float = 0.5
+    member_eta: float = 1.0
+    freq_dependence: bool = True
+    freq_alpha_min: float = 0.0
+    freq_alpha_max: float = 4.0
+    freq_alpha_tol: float = 1e-3
+    freq_alpha_max_iter: int = 64
