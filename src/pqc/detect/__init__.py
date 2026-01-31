@@ -10,5 +10,6 @@ See Also:
     pqc.detect.bad_measurements: Bad measurement detection.
     pqc.detect.transients: Transient exponential recovery scans.
     pqc.detect.exp_dips: Exponential dip recovery scans.
+    pqc.detect.solar_events: Solar elongation event scans.
     pqc.detect.feature_structure: Feature-domain structure tests.
 """

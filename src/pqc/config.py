@@ -263,18 +263,39 @@ class OutlierGateConfig:
 
 @dataclass(frozen=True)
 class SolarCutConfig:
-    """Configure solar-elongation based flagging.
+    """Configure solar-elongation event detection and handling.
 
     Attributes:
-        enabled (bool): Enable solar-elongation flagging.
-        limit_deg (float | None): Fixed cutoff angle in degrees. If None, the
-            cutoff is estimated from residuals.
-        sigma_thresh (float): Threshold in units of sigma for cutoff estimation.
-        nbins (int): Number of elongation bins for cutoff estimation.
-        min_points (int): Minimum points required to attempt estimation.
+        enabled (bool): Enable solar event detection.
+        approach_max_deg (float): Elongation (deg) treated as solar-approach region.
+        min_points_global (int): Minimum points required for global fit.
+        min_points_year (int): Minimum points required per-year fit.
+        min_points_near_zero (int): Minimum points within approach region to fit per year.
+        tau_min_deg (float): Lower bound for elongation scale (deg).
+        tau_max_deg (float): Upper bound for elongation scale (deg).
+        member_eta (float): Per-point membership SNR threshold.
+        freq_dependence (bool): If True, fit 1/f^alpha dependence.
+        freq_alpha_min (float): Lower bound for fitted alpha.
+        freq_alpha_max (float): Upper bound for fitted alpha.
+        freq_alpha_tol (float): Tolerance for alpha optimization.
+        freq_alpha_max_iter (int): Max iterations for alpha optimization.
     """
 
     enabled: bool = False
+    approach_max_deg: float = 30.0
+    min_points_global: int = 30
+    min_points_year: int = 10
+    min_points_near_zero: int = 3
+    tau_min_deg: float = 2.0
+    tau_max_deg: float = 60.0
+    member_eta: float = 1.0
+    freq_dependence: bool = True
+    freq_alpha_min: float = 0.0
+    freq_alpha_max: float = 4.0
+    freq_alpha_tol: float = 1e-3
+    freq_alpha_max_iter: int = 64
+
+    # Deprecated fields retained for compatibility with older configs
     limit_deg: float | None = None
     sigma_thresh: float = 3.0
     nbins: int = 18

@@ -159,10 +159,10 @@ def scan_exp_dips(
     assigned = np.zeros(len(d), dtype=bool)
     kept = []
 
-    for t0, A, delta, in_win, _alpha in events:
+    for t0, A, delta, in_win, alpha in events:
         if suppress_overlap and np.any(assigned & in_win):
             continue
-        kept.append((t0, A, delta, in_win))
+        kept.append((t0, A, delta, in_win, alpha))
         assigned |= in_win
 
     for k, (t0, A, delta, in_win, alpha) in enumerate(kept):

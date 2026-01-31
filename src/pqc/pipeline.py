@@ -47,6 +47,7 @@ from pqc.detect.bad_measurements import detect_bad
 from pqc.detect.exp_dips import scan_exp_dips
 from pqc.detect.feature_structure import detect_binned_structure, detrend_residuals_binned
 from pqc.detect.robust_outliers import detect_robust_outliers
+from pqc.detect.solar_events import detect_solar_events
 from pqc.detect.step_changes import detect_dm_step, detect_step
 from pqc.detect.transients import scan_transients
 from pqc.features.backend_keys import ensure_sys_group
@@ -755,6 +756,18 @@ def _run_detection_stage(
             if col in df_out.columns:
                 df_out.loc[dip_mask, col] = False
         df_out.loc[dip_mask, "bad_point"] = False
+    if "solar_event_member" in df_out.columns:
+        solar_mask = df_out["solar_event_member"].fillna(False)
+        if "bad_ou" in df_out.columns:
+            df_out.loc[solar_mask, "bad_ou"] = False
+        if "bad_mad" in df_out.columns:
+            df_out.loc[solar_mask, "bad_mad"] = False
+        if "bad_hard" in df_out.columns:
+            df_out.loc[solar_mask, "bad_hard"] = False
+        for col in ("robust_outlier", "robust_global_outlier"):
+            if col in df_out.columns:
+                df_out.loc[solar_mask, col] = False
+        df_out.loc[solar_mask, "bad_point"] = False
 
     df_out["event_member"] = False
     if "transient_id" in df_out.columns:
@@ -769,6 +782,8 @@ def _run_detection_stage(
         df_out["event_member"] |= df_out["exp_dip_member"].fillna(False).to_numpy()
     if "exp_dip_global_id" in df_out.columns:
         df_out["event_member"] |= df_out["exp_dip_global_id"].fillna(-1).to_numpy() >= 0
+    if "solar_event_member" in df_out.columns:
+        df_out["event_member"] |= df_out["solar_event_member"].fillna(False).to_numpy()
     df_out["event_member"] &= ~df_out["bad_point"].fillna(False)
 
     df_out["outlier_any"] = False
@@ -776,51 +791,27 @@ def _run_detection_stage(
     df_out["outlier_any"] |= df_out["event_member"]
 
     if solar_cfg.enabled:
-        if "solar_elongation_deg" not in df_out.columns:
-            warn("solar elongation not available; solar cut disabled for this run.")
-        else:
-            resid_col = ou_resid
-            sigma_col = ou_sigma
-            elong = pd.to_numeric(df_out["solar_elongation_deg"], errors="coerce").to_numpy(
-                dtype=float
-            )
-            r = pd.to_numeric(df_out[resid_col], errors="coerce").to_numpy(dtype=float)
-            s = pd.to_numeric(df_out[sigma_col], errors="coerce").to_numpy(dtype=float)
-            valid = np.isfinite(elong) & np.isfinite(r) & np.isfinite(s) & (s > 0)
-
-            cut = None
-            if solar_cfg.limit_deg is not None:
-                cut = float(solar_cfg.limit_deg)
-            elif valid.sum() >= int(solar_cfg.min_points):
-                nbins = int(solar_cfg.nbins)
-                edges = np.linspace(0.0, 180.0, nbins + 1)
-                centers = 0.5 * (edges[:-1] + edges[1:])
-                z = np.abs(r[valid]) / s[valid]
-                x = elong[valid]
-                med = np.full(nbins, np.nan)
-                for i in range(nbins):
-                    mask = (x >= edges[i]) & (x < edges[i + 1])
-                    if mask.any():
-                        med[i] = np.nanmedian(z[mask])
-                thresh = float(solar_cfg.sigma_thresh)
-                valid_bins = np.isfinite(med)
-                for i in range(nbins):
-                    if not valid_bins[i]:
-                        continue
-                    tail = med[i:][valid_bins[i:]]
-                    if tail.size > 0 and np.all(tail <= thresh):
-                        cut = float(centers[i])
-                        break
-                if cut is None and np.any(med <= thresh):
-                    cut = float(np.nanmean(centers[med <= thresh]))
-
-            df_out["solar_cut_deg"] = np.nan if cut is None else float(cut)
-            df_out["solar_cut_sigma_thresh"] = float(solar_cfg.sigma_thresh)
-            df_out["solar_bad"] = False
-            if cut is not None:
-                df_out["solar_bad"] = pd.to_numeric(
-                    df_out["solar_elongation_deg"], errors="coerce"
-                ).to_numpy(dtype=float) <= float(cut)
+        df_out = detect_solar_events(
+            df_out,
+            mjd_col="mjd",
+            resid_col=ou_resid,
+            sigma_col=ou_sigma,
+            elong_col="solar_elongation_deg",
+            freq_col="freq",
+            enabled=solar_cfg.enabled,
+            approach_max_deg=solar_cfg.approach_max_deg,
+            min_points_global=solar_cfg.min_points_global,
+            min_points_year=solar_cfg.min_points_year,
+            min_points_near_zero=solar_cfg.min_points_near_zero,
+            tau_min_deg=solar_cfg.tau_min_deg,
+            tau_max_deg=solar_cfg.tau_max_deg,
+            member_eta=solar_cfg.member_eta,
+            freq_dependence=solar_cfg.freq_dependence,
+            freq_alpha_min=solar_cfg.freq_alpha_min,
+            freq_alpha_max=solar_cfg.freq_alpha_max,
+            freq_alpha_tol=solar_cfg.freq_alpha_tol,
+            freq_alpha_max_iter=solar_cfg.freq_alpha_max_iter,
+        )
 
     if orbital_cfg.enabled:
         if "orbital_phase" not in df_out.columns:
@@ -930,7 +921,8 @@ def run_pipeline(
         pandas.DataFrame: Timing, metadata, and QC annotations. The output
         includes the merged timfile metadata plus ``bad``, ``bad_day``, ``z``,
         ``bad_ou``, ``bad_mad``, ``bad_point``, ``event_member``,
-        ``transient_id``, ``exp_dip_id``, ``exp_dip_member``, ``step_id``, ``dm_step_id``,
+        ``transient_id``, ``exp_dip_id``, ``exp_dip_member``, ``solar_event_member``,
+        ``step_id``, ``dm_step_id``,
         ``step_applicable``, ``step_informative``, ``dm_step_applicable``,
         ``dm_step_informative``, and ``outlier_any``
         (deprecated for plotting/summary). If enabled, feature columns such as
