@@ -29,6 +29,7 @@ def scan_exp_dips(
     freq_alpha_max: float = 4.0,
     freq_alpha_tol: float = 1e-3,
     freq_alpha_max_iter: int = 64,
+    force_minimum_member: bool = True,
 ) -> pd.DataFrame:
     """Scan for exponential dip recoveries and annotate affected rows.
 
@@ -183,6 +184,9 @@ def scan_exp_dips(
         member = in_win.copy()
         if np.isfinite(member_eta):
             member &= (z_pt >= float(member_eta))
+        # Ensure the seed (t0) is always included when it is a valid point.
+        if force_minimum_member:
+            member[idx0] = True
 
         d.loc[member, "exp_dip_id"] = k
         d.loc[member, "exp_dip_amp"] = A

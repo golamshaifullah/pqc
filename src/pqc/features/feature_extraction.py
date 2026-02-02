@@ -68,6 +68,8 @@ def add_orbital_phase(
     d = df.copy()
     pb = _read_par_value(parfile, "PB")
     t0 = _read_par_value(parfile, "T0")
+    if t0 is None:
+        t0 = _read_par_value(parfile, "TASC")
     if pb is None or t0 is None or pb <= 0:
         d["orbital_phase"] = np.nan
         return d

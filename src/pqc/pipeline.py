@@ -33,7 +33,10 @@ from pqc.config import (
     BadMeasConfig,
     ExpDipConfig,
     FeatureConfig,
+    GlitchConfig,
+    GaussianBumpConfig,
     MergeConfig,
+    EclipseConfig,
     OrbitalPhaseCutConfig,
     OutlierGateConfig,
     PreprocConfig,
@@ -44,8 +47,11 @@ from pqc.config import (
     TransientConfig,
 )
 from pqc.detect.bad_measurements import detect_bad
+from pqc.detect.eclipse_events import detect_eclipse_events
 from pqc.detect.exp_dips import scan_exp_dips
 from pqc.detect.feature_structure import detect_binned_structure, detrend_residuals_binned
+from pqc.detect.gaussian_bumps import scan_gaussian_bumps
+from pqc.detect.glitches import scan_glitches
 from pqc.detect.robust_outliers import detect_robust_outliers
 from pqc.detect.solar_events import detect_solar_events
 from pqc.detect.step_changes import detect_dm_step, detect_step
@@ -99,6 +105,8 @@ def _run_detection_stage(
     solar_cfg: SolarCutConfig,
     orbital_cfg: OrbitalPhaseCutConfig,
     eclipse_cfg: EclipseConfig,
+    bump_cfg: GaussianBumpConfig,
+    glitch_cfg: GlitchConfig,
 ) -> pd.DataFrame:
     def _apply_grouped_global_step(
         frame: pd.DataFrame,
@@ -572,13 +580,14 @@ def _run_detection_stage(
             resid_col=tr_resid,
             sigma_col=tr_sigma,
             freq_col="freq",
-            exclude_bad_col="bad",
+            exclude_bad_col=None,
             member_eta=dip_cfg.member_eta,
             freq_dependence=dip_cfg.freq_dependence,
             freq_alpha_min=dip_cfg.freq_alpha_min,
             freq_alpha_max=dip_cfg.freq_alpha_max,
             freq_alpha_tol=dip_cfg.freq_alpha_tol,
             freq_alpha_max_iter=dip_cfg.freq_alpha_max_iter,
+            force_minimum_member=True,
         )
         rename_map = {
             "exp_dip_id": "exp_dip_global_id",
@@ -590,6 +599,32 @@ def _run_detection_stage(
         for src, dst in rename_map.items():
             if src in df_glob.columns:
                 df_work[dst] = df_glob[src]
+
+    if glitch_cfg.enabled:
+        df_glob = scan_glitches(
+            df_work,
+            mjd_col="mjd",
+            resid_col=tr_resid,
+            sigma_col=tr_sigma,
+            enabled=glitch_cfg.enabled,
+            min_points=glitch_cfg.min_points,
+            delta_chi2_thresh=glitch_cfg.delta_chi2_thresh,
+            suppress_overlap=glitch_cfg.suppress_overlap,
+            member_eta=glitch_cfg.member_eta,
+            peak_tau_days=glitch_cfg.peak_tau_days,
+        )
+        for col in (
+            "glitch_id",
+            "glitch_t0",
+            "glitch_amp",
+            "glitch_slope",
+            "glitch_peak_tau_days",
+            "glitch_model",
+            "glitch_delta_chi2",
+            "glitch_member",
+        ):
+            if col in df_glob.columns:
+                df_work[col] = df_glob[col]
 
     if robust_cfg.enabled and robust_cfg.scope in ("global", "both"):
         df_work = detect_robust_outliers(
@@ -745,62 +780,6 @@ def _run_detection_stage(
     if "bad_hard" in df_out.columns:
         df_out["bad_point"] |= df_out["bad_hard"].fillna(False)
 
-    if "exp_dip_member" in df_out.columns:
-        dip_mask = df_out["exp_dip_member"].fillna(False)
-        if "bad_ou" in df_out.columns:
-            df_out.loc[dip_mask, "bad_ou"] = False
-        if "bad_mad" in df_out.columns:
-            df_out.loc[dip_mask, "bad_mad"] = False
-        if "bad_hard" in df_out.columns:
-            df_out.loc[dip_mask, "bad_hard"] = False
-        for col in ("robust_outlier", "robust_global_outlier"):
-            if col in df_out.columns:
-                df_out.loc[dip_mask, col] = False
-        df_out.loc[dip_mask, "bad_point"] = False
-    if "solar_event_member" in df_out.columns:
-        solar_mask = df_out["solar_event_member"].fillna(False)
-        if "bad_ou" in df_out.columns:
-            df_out.loc[solar_mask, "bad_ou"] = False
-        if "bad_mad" in df_out.columns:
-            df_out.loc[solar_mask, "bad_mad"] = False
-        if "bad_hard" in df_out.columns:
-            df_out.loc[solar_mask, "bad_hard"] = False
-        for col in ("robust_outlier", "robust_global_outlier"):
-            if col in df_out.columns:
-                df_out.loc[solar_mask, col] = False
-        df_out.loc[solar_mask, "bad_point"] = False
-    if "eclipse_event_member" in df_out.columns:
-        eclipse_mask = df_out["eclipse_event_member"].fillna(False)
-        if "bad_ou" in df_out.columns:
-            df_out.loc[eclipse_mask, "bad_ou"] = False
-        if "bad_mad" in df_out.columns:
-            df_out.loc[eclipse_mask, "bad_mad"] = False
-        if "bad_hard" in df_out.columns:
-            df_out.loc[eclipse_mask, "bad_hard"] = False
-        for col in ("robust_outlier", "robust_global_outlier"):
-            if col in df_out.columns:
-                df_out.loc[eclipse_mask, col] = False
-        df_out.loc[eclipse_mask, "bad_point"] = False
-
-    df_out["event_member"] = False
-    if "transient_id" in df_out.columns:
-        df_out["event_member"] |= df_out["transient_id"].fillna(-1).to_numpy() >= 0
-    if "transient_global_id" in df_out.columns:
-        df_out["event_member"] |= df_out["transient_global_id"].fillna(-1).to_numpy() >= 0
-    if "step_informative" in df_out.columns:
-        df_out["event_member"] |= df_out["step_informative"].fillna(False).to_numpy()
-    if "dm_step_informative" in df_out.columns:
-        df_out["event_member"] |= df_out["dm_step_informative"].fillna(False).to_numpy()
-    if "exp_dip_member" in df_out.columns:
-        df_out["event_member"] |= df_out["exp_dip_member"].fillna(False).to_numpy()
-    if "exp_dip_global_id" in df_out.columns:
-        df_out["event_member"] |= df_out["exp_dip_global_id"].fillna(-1).to_numpy() >= 0
-    if "solar_event_member" in df_out.columns:
-        df_out["event_member"] |= df_out["solar_event_member"].fillna(False).to_numpy()
-    if "eclipse_event_member" in df_out.columns:
-        df_out["event_member"] |= df_out["eclipse_event_member"].fillna(False).to_numpy()
-    df_out["event_member"] &= ~df_out["bad_point"].fillna(False)
-
     if solar_cfg.enabled:
         df_out = detect_solar_events(
             df_out,
@@ -844,9 +823,92 @@ def _run_detection_stage(
             freq_alpha_max_iter=eclipse_cfg.freq_alpha_max_iter,
         )
 
-    df_out["outlier_any"] = False
-    df_out["outlier_any"] |= df_out["bad_point"]
-    df_out["outlier_any"] |= df_out["event_member"]
+    if bump_cfg.enabled:
+        df_out = scan_gaussian_bumps(
+            df_out,
+            mjd_col="mjd",
+            resid_col=ou_resid,
+            sigma_col=ou_sigma,
+            freq_col="freq",
+            enabled=bump_cfg.enabled,
+            min_duration_days=bump_cfg.min_duration_days,
+            max_duration_days=bump_cfg.max_duration_days,
+            n_durations=bump_cfg.n_durations,
+            min_points=bump_cfg.min_points,
+            delta_chi2_thresh=bump_cfg.delta_chi2_thresh,
+            suppress_overlap=bump_cfg.suppress_overlap,
+            member_eta=bump_cfg.member_eta,
+            freq_dependence=bump_cfg.freq_dependence,
+            freq_alpha_min=bump_cfg.freq_alpha_min,
+            freq_alpha_max=bump_cfg.freq_alpha_max,
+            freq_alpha_tol=bump_cfg.freq_alpha_tol,
+            freq_alpha_max_iter=bump_cfg.freq_alpha_max_iter,
+        )
+
+    dip_mask = None
+    if "exp_dip_member" in df_out.columns:
+        dip_mask = df_out["exp_dip_member"].fillna(False)
+    if dip_mask is None and "exp_dip_global_id" in df_out.columns:
+        dip_mask = df_out["exp_dip_global_id"].fillna(-1).to_numpy() >= 0
+    if dip_mask is not None:
+        if "bad_ou" in df_out.columns:
+            df_out.loc[dip_mask, "bad_ou"] = False
+        if "bad_mad" in df_out.columns:
+            df_out.loc[dip_mask, "bad_mad"] = False
+        if "bad_hard" in df_out.columns:
+            df_out.loc[dip_mask, "bad_hard"] = False
+        for col in ("robust_outlier", "robust_global_outlier"):
+            if col in df_out.columns:
+                df_out.loc[dip_mask, col] = False
+        df_out.loc[dip_mask, "bad_point"] = False
+    if "solar_event_member" in df_out.columns:
+        solar_mask = df_out["solar_event_member"].fillna(False)
+        if "bad_ou" in df_out.columns:
+            df_out.loc[solar_mask, "bad_ou"] = False
+        if "bad_mad" in df_out.columns:
+            df_out.loc[solar_mask, "bad_mad"] = False
+        if "bad_hard" in df_out.columns:
+            df_out.loc[solar_mask, "bad_hard"] = False
+        for col in ("robust_outlier", "robust_global_outlier"):
+            if col in df_out.columns:
+                df_out.loc[solar_mask, col] = False
+        df_out.loc[solar_mask, "bad_point"] = False
+    if "eclipse_event_member" in df_out.columns:
+        eclipse_mask = df_out["eclipse_event_member"].fillna(False)
+        if "bad_ou" in df_out.columns:
+            df_out.loc[eclipse_mask, "bad_ou"] = False
+        if "bad_mad" in df_out.columns:
+            df_out.loc[eclipse_mask, "bad_mad"] = False
+        if "bad_hard" in df_out.columns:
+            df_out.loc[eclipse_mask, "bad_hard"] = False
+        for col in ("robust_outlier", "robust_global_outlier"):
+            if col in df_out.columns:
+                df_out.loc[eclipse_mask, col] = False
+        df_out.loc[eclipse_mask, "bad_point"] = False
+    if "gaussian_bump_member" in df_out.columns:
+        bump_mask = df_out["gaussian_bump_member"].fillna(False)
+        if "bad_ou" in df_out.columns:
+            df_out.loc[bump_mask, "bad_ou"] = False
+        if "bad_mad" in df_out.columns:
+            df_out.loc[bump_mask, "bad_mad"] = False
+        if "bad_hard" in df_out.columns:
+            df_out.loc[bump_mask, "bad_hard"] = False
+        for col in ("robust_outlier", "robust_global_outlier"):
+            if col in df_out.columns:
+                df_out.loc[bump_mask, col] = False
+        df_out.loc[bump_mask, "bad_point"] = False
+    if "glitch_member" in df_out.columns:
+        glitch_mask = df_out["glitch_member"].fillna(False)
+        if "bad_ou" in df_out.columns:
+            df_out.loc[glitch_mask, "bad_ou"] = False
+        if "bad_mad" in df_out.columns:
+            df_out.loc[glitch_mask, "bad_mad"] = False
+        if "bad_hard" in df_out.columns:
+            df_out.loc[glitch_mask, "bad_hard"] = False
+        for col in ("robust_outlier", "robust_global_outlier"):
+            if col in df_out.columns:
+                df_out.loc[glitch_mask, col] = False
+        df_out.loc[glitch_mask, "bad_point"] = False
     if orbital_cfg.enabled:
         if "orbital_phase" not in df_out.columns:
             warn("orbital phase not available; orbital phase cut disabled for this run.")
@@ -894,6 +956,32 @@ def _run_detection_stage(
             if cut is not None:
                 dist_all = np.minimum(np.abs(phase - center), 1.0 - np.abs(phase - center))
                 df_out["orbital_phase_bad"] = np.isfinite(dist_all) & (dist_all <= float(cut))
+    df_out["event_member"] = False
+    if "transient_id" in df_out.columns:
+        df_out["event_member"] |= df_out["transient_id"].fillna(-1).to_numpy() >= 0
+    if "transient_global_id" in df_out.columns:
+        df_out["event_member"] |= df_out["transient_global_id"].fillna(-1).to_numpy() >= 0
+    if "step_informative" in df_out.columns:
+        df_out["event_member"] |= df_out["step_informative"].fillna(False).to_numpy()
+    if "dm_step_informative" in df_out.columns:
+        df_out["event_member"] |= df_out["dm_step_informative"].fillna(False).to_numpy()
+    if "exp_dip_member" in df_out.columns:
+        df_out["event_member"] |= df_out["exp_dip_member"].fillna(False).to_numpy()
+    if "exp_dip_global_id" in df_out.columns:
+        df_out["event_member"] |= df_out["exp_dip_global_id"].fillna(-1).to_numpy() >= 0
+    if "solar_event_member" in df_out.columns:
+        df_out["event_member"] |= df_out["solar_event_member"].fillna(False).to_numpy()
+    if "eclipse_event_member" in df_out.columns:
+        df_out["event_member"] |= df_out["eclipse_event_member"].fillna(False).to_numpy()
+    if "gaussian_bump_member" in df_out.columns:
+        df_out["event_member"] |= df_out["gaussian_bump_member"].fillna(False).to_numpy()
+    if "glitch_member" in df_out.columns:
+        df_out["event_member"] |= df_out["glitch_member"].fillna(False).to_numpy()
+    df_out["event_member"] &= ~df_out["bad_point"].fillna(False)
+
+    df_out["outlier_any"] = False
+    df_out["outlier_any"] |= df_out["bad_point"]
+    df_out["outlier_any"] |= df_out["event_member"]
 
     return df_out
 
@@ -916,6 +1004,8 @@ def run_pipeline(
     solar_cfg: SolarCutConfig | None = None,
     orbital_cfg: OrbitalPhaseCutConfig | None = None,
     eclipse_cfg: EclipseConfig | None = None,
+    bump_cfg: GaussianBumpConfig | None = None,
+    glitch_cfg: GlitchConfig | None = None,
     drop_unmatched: bool = False,
     settings_out: str | Path | None = None,
 ) -> pd.DataFrame:
@@ -947,6 +1037,8 @@ def run_pipeline(
         solar_cfg (SolarCutConfig | None): Configuration for solar events.
         orbital_cfg (OrbitalPhaseCutConfig | None): Configuration for orbital phase cuts.
         eclipse_cfg (EclipseConfig | None): Configuration for eclipse events.
+        bump_cfg (GaussianBumpConfig | None): Configuration for Gaussian-bump events.
+        glitch_cfg (GlitchConfig | None): Configuration for glitch events.
         drop_unmatched (bool): If True, drop TOAs whose metadata could not be
             matched.
         settings_out (str | Path | None): Optional TOML path to write the
@@ -958,7 +1050,7 @@ def run_pipeline(
         includes the merged timfile metadata plus ``bad``, ``bad_day``, ``z``,
         ``bad_ou``, ``bad_mad``, ``bad_point``, ``event_member``,
         ``transient_id``, ``exp_dip_id``, ``exp_dip_member``, ``solar_event_member``,
-        ``step_id``, ``dm_step_id``,
+        ``glitch_id``, ``glitch_member``, ``step_id``, ``dm_step_id``,
         ``step_applicable``, ``step_informative``, ``dm_step_applicable``,
         ``dm_step_informative``, and ``outlier_any``
         (deprecated for plotting/summary). If enabled, feature columns such as
@@ -1029,6 +1121,10 @@ def run_pipeline(
         orbital_cfg = OrbitalPhaseCutConfig()
     if eclipse_cfg is None:
         eclipse_cfg = EclipseConfig()
+    if bump_cfg is None:
+        bump_cfg = GaussianBumpConfig()
+    if glitch_cfg is None:
+        glitch_cfg = GlitchConfig()
     write_run_settings_toml(
         settings_out,
         parfile=parfile,
@@ -1048,6 +1144,8 @@ def run_pipeline(
         solar_cfg=solar_cfg,
         orbital_cfg=orbital_cfg,
         eclipse_cfg=eclipse_cfg,
+        bump_cfg=bump_cfg,
+        glitch_cfg=glitch_cfg,
     )
 
     info("[1/6] Parse timfiles")
@@ -1117,4 +1215,7 @@ def run_pipeline(
         gate_cfg=gate_cfg,
         solar_cfg=solar_cfg,
         orbital_cfg=orbital_cfg,
+        eclipse_cfg=eclipse_cfg,
+        bump_cfg=bump_cfg,
+        glitch_cfg=glitch_cfg,
     )

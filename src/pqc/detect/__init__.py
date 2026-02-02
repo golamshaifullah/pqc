@@ -12,5 +12,7 @@ See Also:
     pqc.detect.exp_dips: Exponential dip recovery scans.
     pqc.detect.solar_events: Solar elongation event scans.
     pqc.detect.eclipse_events: Orbital-phase eclipse event scans.
+    pqc.detect.gaussian_bumps: Global Gaussian-bump event scans.
+    pqc.detect.glitches: Global glitch event scans.
     pqc.detect.feature_structure: Feature-domain structure tests.
 """

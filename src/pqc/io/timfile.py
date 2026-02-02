@@ -156,8 +156,9 @@ def parse_all_timfiles(
 
                 if upper.startswith("TIME"):
                     # TIME offset applies to subsequent TOAs in this file.
-                    # Only accept compact forms: "TIME +1.0" or "TIME -1.0".
-                    if len(parts) < 2 or parts[1][0] not in {"+", "-"}:
+                    # Accept compact forms: "TIME +1.0" or "TIME -1.0",
+                    # and tolerate unsigned numeric values as "+<value>".
+                    if len(parts) < 2:
                         raise ValueError(
                             f"Invalid TIME directive in {timfile}:{_lineno}: '{stripped}'. "
                             "Expected 'TIME +1.0' or 'TIME -1.0'."
@@ -166,7 +167,7 @@ def parse_all_timfiles(
                     if _parse_float(time_str) is None:
                         raise ValueError(
                             f"Invalid TIME directive in {timfile}:{_lineno}: '{stripped}'. "
-                            "Expected a signed float like 'TIME +1.0'."
+                            "Expected a numeric value like 'TIME +1.0'."
                         )
                     time_offset_sec += float(_parse_float(time_str))
                     max_time_offset_sec = max(max_time_offset_sec, abs(time_offset_sec))

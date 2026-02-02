@@ -169,7 +169,7 @@ class ExpDipConfig:
     suppress_overlap: bool = True
     member_eta: float = 1.0
     freq_dependence: bool = True
-    freq_alpha_min: float = 0.0
+    freq_alpha_min: float = 2.0
     freq_alpha_max: float = 4.0
     freq_alpha_tol: float = 1e-3
     freq_alpha_max_iter: int = 64
@@ -352,3 +352,42 @@ class EclipseConfig:
     freq_alpha_max: float = 4.0
     freq_alpha_tol: float = 1e-3
     freq_alpha_max_iter: int = 64
+
+
+@dataclass(frozen=True)
+class GaussianBumpConfig:
+    """Configure global Gaussian-bump event detection."""
+    enabled: bool = False
+    min_duration_days: float = 60.0
+    max_duration_days: float = 1500.0
+    n_durations: int = 6
+    min_points: int = 20
+    delta_chi2_thresh: float = 25.0
+    suppress_overlap: bool = True
+    member_eta: float = 1.0
+    freq_dependence: bool = True
+    freq_alpha_min: float = 0.0
+    freq_alpha_max: float = 4.0
+    freq_alpha_tol: float = 1e-3
+    freq_alpha_max_iter: int = 64
+
+
+@dataclass(frozen=True)
+class GlitchConfig:
+    """Configure global glitch event detection.
+
+    Attributes:
+        enabled (bool): Enable glitch detection.
+        min_points (int): Minimum points required after a candidate glitch epoch.
+        delta_chi2_thresh (float): Minimum Δχ² to accept a glitch candidate.
+        suppress_overlap (bool): If True, prevent overlapping glitch assignments.
+        member_eta (float): Per-point membership SNR threshold.
+        peak_tau_days (float): Exponential decay timescale for the peak+linear model.
+    """
+
+    enabled: bool = False
+    min_points: int = 30
+    delta_chi2_thresh: float = 25.0
+    suppress_overlap: bool = True
+    member_eta: float = 1.0
+    peak_tau_days: float = 30.0
