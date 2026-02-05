@@ -51,7 +51,7 @@ def load_libstempo(parfile: str | Path) -> pd.DataFrame:
     if not Path(all_tim).exists():
         raise FileNotFoundError(all_tim)
 
-    psr = lt.tempopulsar(parfile=str(parfile), timfile=str(all_tim))
+    psr = lt.tempopulsar(parfile=str(parfile), timfile=str(all_tim), maxobs=120000)
 
     if hasattr(psr, "stoas"):
         mjd = np.asarray(psr.stoas, dtype="float64")

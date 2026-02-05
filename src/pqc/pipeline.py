@@ -612,6 +612,9 @@ def _run_detection_stage(
             suppress_overlap=glitch_cfg.suppress_overlap,
             member_eta=glitch_cfg.member_eta,
             peak_tau_days=glitch_cfg.peak_tau_days,
+            noise_k=glitch_cfg.noise_k,
+            mean_window_days=glitch_cfg.mean_window_days,
+            min_duration_days=glitch_cfg.min_duration_days,
         )
         for col in (
             "glitch_id",

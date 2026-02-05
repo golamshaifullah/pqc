@@ -383,6 +383,9 @@ class GlitchConfig:
         suppress_overlap (bool): If True, prevent overlapping glitch assignments.
         member_eta (float): Per-point membership SNR threshold.
         peak_tau_days (float): Exponential decay timescale for the peak+linear model.
+        noise_k (float): Threshold in units of robust sigma for the noise-aware rule.
+        mean_window_days (float): Rolling-mean window (days) for zero-crossing.
+        min_duration_days (float): Minimum duration (days) for a glitch event.
     """
 
     enabled: bool = False
@@ -391,3 +394,6 @@ class GlitchConfig:
     suppress_overlap: bool = True
     member_eta: float = 1.0
     peak_tau_days: float = 30.0
+    noise_k: float = 1.0
+    mean_window_days: float = 180.0
+    min_duration_days: float = 1000.0

@@ -18,6 +18,9 @@ def scan_glitches(
     suppress_overlap: bool = True,
     member_eta: float = 1.0,
     peak_tau_days: float = 30.0,
+    noise_k: float = 1.0,
+    mean_window_days: float = 180.0,
+    min_duration_days: float = 1000.0,
 ) -> pd.DataFrame:
     """Scan for glitch-like events (step + linear ramp, or peak + linear ramp)."""
     out = df.sort_values(mjd_col).copy()
@@ -58,6 +61,45 @@ def scan_glitches(
         tt = t[in_win] - t0
         yy = y[in_win]
         ww = 1.0 / (s[in_win] ** 2)
+        # Noise-aware rule: use all finite residuals after t0 to find the
+        # window up to rolling-mean crossing zero (or end), then require
+        # r0 > median + k*MAD within that window.
+        y0 = y[idx0]
+        if not np.isfinite(y0):
+            continue
+        after_mask_all = (t > t0) & np.isfinite(y)
+        if not np.any(after_mask_all):
+            continue
+        t_after_all = t[after_mask_all]
+        y_after_all = y[after_mask_all]
+        order = np.argsort(t_after_all)
+        t_after_all = t_after_all[order]
+        y_after_all = y_after_all[order]
+        window = float(mean_window_days)
+        if window <= 0:
+            window = 1.0
+        roll_mean = np.full_like(y_after_all, np.nan, dtype=float)
+        start = 0
+        for i in range(y_after_all.size):
+            while t_after_all[i] - t_after_all[start] > window:
+                start += 1
+            roll_mean[i] = float(np.nanmean(y_after_all[start : i + 1]))
+        cross_idx = np.where(roll_mean >= 0.0)[0]
+        if cross_idx.size:
+            t_end = t_after_all[int(cross_idx[0])]
+        else:
+            t_end = t_after_all[-1]
+        if (t_end - t0) < float(min_duration_days):
+            continue
+        win_mask = (t_after_all <= t_end)
+        if not np.any(win_mask):
+            continue
+        y_win = y_after_all[win_mask]
+        med = float(np.nanmedian(y_win))
+        mad = float(np.nanmedian(np.abs(y_win - med)))
+        robust_sigma = 1.4826 * mad
+        if y0 <= (med + float(noise_k) * robust_sigma):
+            continue
 
         # Model 1: step + linear ramp: A + B*dt
         X1 = np.vstack([np.ones_like(tt), tt]).T
