@@ -582,6 +582,7 @@ def _run_detection_stage(
             freq_col="freq",
             exclude_bad_col=None,
             member_eta=dip_cfg.member_eta,
+            min_duration_days=dip_cfg.min_duration_days,
             freq_dependence=dip_cfg.freq_dependence,
             freq_alpha_min=dip_cfg.freq_alpha_min,
             freq_alpha_max=dip_cfg.freq_alpha_max,

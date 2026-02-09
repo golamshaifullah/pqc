@@ -24,6 +24,7 @@ def scan_exp_dips(
     delta_chi2_thresh: float = 25.0,
     suppress_overlap: bool = True,
     member_eta: float = 1.0,
+    min_duration_days: float = 21.0,
     freq_dependence: bool = True,
     freq_alpha_min: float = 0.0,
     freq_alpha_max: float = 4.0,
@@ -111,6 +112,9 @@ def scan_exp_dips(
         t0 = t[idx0]
         in_win = use & (t >= t0) & (t <= t0 + w_end)
         if np.count_nonzero(in_win) < min_points:
+            continue
+        t_span = float(np.nanmax(t[in_win]) - t0)
+        if t_span < float(min_duration_days):
             continue
 
         tt = t[in_win] - t0

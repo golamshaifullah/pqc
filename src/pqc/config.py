@@ -155,6 +155,7 @@ class ExpDipConfig:
         delta_chi2_thresh (float): Minimum Δχ² to accept a dip candidate.
         suppress_overlap (bool): If True, prevent overlapping dip assignments.
         member_eta (float): Per-point membership SNR threshold.
+        min_duration_days (float): Minimum event duration (days).
         freq_dependence (bool): If True, fit dips assuming 1/f^alpha scaling.
         freq_alpha_min (float): Lower bound for fitted alpha.
         freq_alpha_max (float): Upper bound for fitted alpha.
@@ -168,6 +169,7 @@ class ExpDipConfig:
     delta_chi2_thresh: float = 25.0
     suppress_overlap: bool = True
     member_eta: float = 1.0
+    min_duration_days: float = 21.0
     freq_dependence: bool = True
     freq_alpha_min: float = 2.0
     freq_alpha_max: float = 4.0
