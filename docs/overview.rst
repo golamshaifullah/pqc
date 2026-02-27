@@ -16,8 +16,9 @@ Core capabilities
 - Load TOA/residual arrays via libstempo
 - Merge timing arrays with timfile metadata
 - Normalize backend keys (sys/group) for per-backend analysis
-- Detect bad measurements and transient exponential recoveries
-- Detect step and DM-step offsets
+- Detect bad measurements, transients, steps, and DM-step offsets
+- Detect global astrophysical events (exp-dips, solar, eclipses,
+  gaussian-bumps, glitches)
 - Optional feature columns and structure diagnostics
 - Optional covariate-conditioned preprocessing
 

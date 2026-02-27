@@ -42,7 +42,7 @@ Inspect results
    # Keep only good points
    good = df.loc[~df["bad_point"].fillna(False)].copy()
 
-   # Focus on event members (transients/steps)
+   # Focus on event members (transients, steps, dips, solar/eclipses, etc.)
    events = df.loc[df["event_member"].fillna(False)].copy()
 
    # Save a filtered table
@@ -55,9 +55,18 @@ The pipeline returns a pandas DataFrame with timing metadata, QC flags, and
 optional event annotations. Key columns include:
 
 - ``bad_point``: aggregate bad measurement flag
-- ``event_member``: event membership (transient, informative step, informative DM-step)
+- ``event_member``: aggregate event membership across enabled detectors
 - ``step_applicable`` and ``step_informative``
 - ``dm_step_applicable`` and ``dm_step_informative``
+- event-specific columns such as ``exp_dip_member``, ``solar_event_member``,
+  ``eclipse_event_member``, ``gaussian_bump_member``, and ``glitch_member``
+
+Important semantics
+-------------------
+
+Rows marked as astrophysical-event members are treated as non-outliers in
+``bad_point``. The compatibility field ``outlier_any`` remains available and is
+defined as ``bad_point OR event_member``.
 
 If you run via the CLI, a TOML settings file is also written alongside the
 CSV (same filename stem with ``.pqc_settings.toml``). This captures the exact

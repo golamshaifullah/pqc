@@ -4,9 +4,12 @@ Concepts
 Backends and grouping
 ---------------------
 
-Most detectors operate per backend (column ``group`` by default). This keeps
+Many detectors operate per backend (column ``group`` by default). This keeps
 instrument-specific noise characteristics separate. You can select the backend
 column with ``backend_col`` in the pipeline or ``--backend-col`` in the CLI.
+
+Some detectors are global by design (across backends), including solar-event,
+eclipse-event, gaussian-bump, and glitch detection.
 
 Residuals and noise
 -------------------
@@ -43,6 +46,20 @@ Transient exponential recoveries are modeled as
 where ``H`` is the Heaviside step function, ``t0`` is the event time, ``A`` is
 amplitude, and ``tau`` is the recovery timescale. This is a common template for
 recovery-like disturbances in timing data [LKH2005]_.
+
+Global astrophysical events
+---------------------------
+
+PQC also supports event templates that are fit globally:
+
+- Exponential dips over MJD (optional frequency dependence ``1/f^alpha``)
+- Solar elongation events (per-year fit when supported, fallback to global fit)
+- Binary eclipses as a function of orbital phase (global fit)
+- Gaussian-bumps over MJD using model comparison
+- Glitches using step+ramp or peak+ramp model comparison
+
+These event members are treated as non-outliers in ``bad_point`` and are still
+tracked in ``event_member`` for downstream filtering/plotting.
 
 Step and DM-step events
 -----------------------

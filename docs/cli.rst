@@ -4,6 +4,9 @@ Command line
 The CLI wraps the full pipeline and writes a CSV output table. Most options
 map directly to configuration dataclasses in ``pqc.config``.
 
+Note: advanced global-event tuning (solar/eclipses/gaussian-bumps/glitches)
+is currently configured through the Python API config objects.
+
 Basic run
 ---------
 

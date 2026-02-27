@@ -2,10 +2,10 @@
 
 PQC is a lightweight quality-control toolkit for pulsar timing array (PTA)
 residuals. It parses tempo2 timfiles, loads TOA/residual arrays via libstempo,
-merges timing arrays with timfile metadata, normalizes backend keys, and runs
-two QC passes: bad-measurement detection and transient exponential recovery
-detection. The intended workflow is a single-call pipeline that returns a
-fully-annotated pandas DataFrame or a small CLI for batch runs.
+merges timing arrays with timfile metadata, normalizes backend keys, and
+annotates each TOA with outlier/event labels. The intended workflow is a
+single-call pipeline that returns a fully-annotated pandas DataFrame or a
+small CLI for batch runs.
 
 ## Features
 
@@ -13,9 +13,12 @@ fully-annotated pandas DataFrame or a small CLI for batch runs.
 - Load TOA/residual arrays via libstempo
 - Merge timing arrays with timfile metadata
 - Normalize backend keys (sys/group) for per-backend analysis
-- Detect bad measurements and transient exponential recoveries
+- Detect bad measurements, transients, steps, and DM steps
+- Detect global astrophysical events: exponential dips, solar events, eclipses,
+  gaussian-bumps, and glitches
 - Optional feature columns (orbital phase, solar elongation, elevation/airmass/parallactic angle)
 - Feature-domain structure diagnostics and detrending
+- Write run settings to TOML alongside output CSV
 
 ## Installation
 
@@ -70,13 +73,27 @@ Python (configured pipeline):
 
 ```python
 from pqc.pipeline import run_pipeline
-from pqc.config import BadMeasConfig, TransientConfig, MergeConfig
+from pqc.config import (
+    BadMeasConfig,
+    EclipseConfig,
+    ExpDipConfig,
+    GaussianBumpConfig,
+    GlitchConfig,
+    MergeConfig,
+    SolarCutConfig,
+    TransientConfig,
+)
 
 df = run_pipeline(
     "/path/to/pulsar.par",
     backend_col="group",
     bad_cfg=BadMeasConfig(tau_corr_days=0.03, fdr_q=0.02),
     tr_cfg=TransientConfig(tau_rec_days=10.0, delta_chi2_thresh=30.0),
+    dip_cfg=ExpDipConfig(freq_dependence=True),
+    solar_cfg=SolarCutConfig(enabled=True, freq_dependence=True),
+    eclipse_cfg=EclipseConfig(enabled=True, freq_dependence=True),
+    bump_cfg=GaussianBumpConfig(enabled=True),
+    glitch_cfg=GlitchConfig(enabled=True),
     merge_cfg=MergeConfig(tol_days=3.0 / 86400.0),
 )
 ```
@@ -124,10 +141,14 @@ pqc --par /path/to/pulsar.par --out out.csv \
 ## Output columns (QC semantics)
 
 - `bad_point`: boolean; `bad_ou OR bad_mad OR robust_outlier OR bad_hard`
-- `event_member`: boolean; `transient_id != -1 OR step_informative OR dm_step_informative`
+- `event_member`: boolean aggregate across detected event types; event labels are
+  suppressed on rows already marked `bad_point`
 - `step_applicable`/`step_informative`: booleans for step membership (time-window vs SNR)
 - `dm_step_applicable`/`dm_step_informative`: booleans for DM-step membership (time-window vs SNR)
-- `outlier_any`: kept for backward compatibility; do not use for plots/summaries
+- `outlier_any`: `bad_point OR event_member` (kept for compatibility with earlier consumers)
+- event-specific membership columns include:
+  `exp_dip_member`, `solar_event_member`, `eclipse_event_member`,
+  `gaussian_bump_member`, and `glitch_member`
 
 ## Documentation
 

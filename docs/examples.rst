@@ -168,6 +168,47 @@ Exponential dip events
 
    dip_members = df.loc[df["exp_dip_member"].fillna(False)]
 
+Solar and eclipse events
+------------------------
+
+.. code-block:: python
+
+   from pqc.config import EclipseConfig, SolarCutConfig
+
+   df = run_pipeline(
+       "/path/to/pulsar.par",
+       solar_cfg=SolarCutConfig(
+           enabled=True,
+           freq_dependence=True,
+           min_points_global=20,
+           min_points_year=8,
+       ),
+       eclipse_cfg=EclipseConfig(
+           enabled=True,
+           center_phase=0.25,
+           freq_dependence=True,
+       ),
+   )
+
+   solar_members = df.loc[df["solar_event_member"].fillna(False)]
+   eclipse_members = df.loc[df["eclipse_event_member"].fillna(False)]
+
+Gaussian-bumps and glitches
+---------------------------
+
+.. code-block:: python
+
+   from pqc.config import GaussianBumpConfig, GlitchConfig
+
+   df = run_pipeline(
+       "/path/to/pulsar.par",
+       bump_cfg=GaussianBumpConfig(enabled=True),
+       glitch_cfg=GlitchConfig(enabled=True, min_duration_days=1000.0),
+   )
+
+   bumps = df.loc[df["gaussian_bump_member"].fillna(False)]
+   glitches = df.loc[df["glitch_member"].fillna(False)]
+
 References
 ----------
 
