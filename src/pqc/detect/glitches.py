@@ -91,7 +91,7 @@ def scan_glitches(
             t_end = t_after_all[-1]
         if (t_end - t0) < float(min_duration_days):
             continue
-        win_mask = (t_after_all <= t_end)
+        win_mask = t_after_all <= t_end
         if not np.any(win_mask):
             continue
         y_win = y_after_all[win_mask]
@@ -113,7 +113,7 @@ def scan_glitches(
         A1, B1 = beta
         if np.isfinite(A1) and np.isfinite(B1):
             model1 = X1 @ beta
-            chi2_null = np.sum(ww * (yy ** 2))
+            chi2_null = np.sum(ww * (yy**2))
             chi2_model = np.sum(ww * ((yy - model1) ** 2))
             delta1 = chi2_null - chi2_model
         else:
@@ -131,7 +131,7 @@ def scan_glitches(
         A2, B2 = beta2
         if np.isfinite(A2) and np.isfinite(B2):
             model2 = X2 @ beta2
-            chi2_null = np.sum(ww * (yy ** 2))
+            chi2_null = np.sum(ww * (yy**2))
             chi2_model = np.sum(ww * ((yy - model2) ** 2))
             delta2 = chi2_null - chi2_model
         else:

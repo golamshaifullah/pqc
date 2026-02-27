@@ -5,9 +5,11 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+
 def _year_from_mjd(mjd: np.ndarray) -> np.ndarray:
     # Approximate conversion: year 2000 at MJD 51544.5
     return (2000.0 + (mjd - 51544.5) / 365.25).astype(int)
+
 
 def detect_solar_events(
     df: pd.DataFrame,
@@ -70,11 +72,13 @@ def detect_solar_events(
     y_good = y[good]
     f_good = freq[good] if freq is not None else None
 
-    def _delta_for_alpha(alpha: float, ee: np.ndarray, yy: np.ndarray, ww: np.ndarray, ff: np.ndarray | None) -> float:
+    def _delta_for_alpha(
+        alpha: float, ee: np.ndarray, yy: np.ndarray, ww: np.ndarray, ff: np.ndarray | None
+    ) -> float:
         if ff is None:
             ff_term = 1.0
         else:
-            ff_term = ff ** alpha
+            ff_term = ff**alpha
         tau = _optimize_tau(alpha, ee, yy, ww, ff)
         if not np.isfinite(tau):
             return -np.inf
@@ -85,11 +89,13 @@ def detect_solar_events(
         A = np.sum(ww * model_base * yy) / denom
         if not np.isfinite(A):
             return -np.inf
-        chi2_null = np.sum(ww * (yy ** 2))
+        chi2_null = np.sum(ww * (yy**2))
         chi2_model = np.sum(ww * ((yy - A * model_base) ** 2))
         return chi2_null - chi2_model
 
-    def _optimize_tau(alpha: float, ee: np.ndarray, yy: np.ndarray, ww: np.ndarray, ff: np.ndarray | None) -> float:
+    def _optimize_tau(
+        alpha: float, ee: np.ndarray, yy: np.ndarray, ww: np.ndarray, ff: np.ndarray | None
+    ) -> float:
         a = float(tau_min_deg)
         b = float(tau_max_deg)
         if not np.isfinite(a) or not np.isfinite(b) or b <= a:
@@ -102,7 +108,7 @@ def detect_solar_events(
             if ff is None:
                 ff_term = 1.0
             else:
-                ff_term = ff ** alpha
+                ff_term = ff**alpha
             f = np.exp(-ee / tau) / ff_term
             denom = np.sum(ww * f * f)
             if denom <= 0:
@@ -110,7 +116,7 @@ def detect_solar_events(
             A = np.sum(ww * f * yy) / denom
             if not np.isfinite(A):
                 return -np.inf
-            chi2_null = np.sum(ww * (yy ** 2))
+            chi2_null = np.sum(ww * (yy**2))
             chi2_model = np.sum(ww * ((yy - A * f) ** 2))
             return chi2_null - chi2_model
 
@@ -164,7 +170,7 @@ def detect_solar_events(
     if not np.isfinite(tau_global):
         return out
     if freq_dependence:
-        ff_term = f_good ** alpha
+        ff_term = f_good**alpha
     else:
         ff_term = 1.0
     model_base = np.exp(-e_good / tau_global) / ff_term
@@ -174,7 +180,7 @@ def detect_solar_events(
     A_global = np.sum(w * model_base * y_good) / denom
     if not np.isfinite(A_global):
         return out
-    chi2_null = np.sum(w * (y_good ** 2))
+    chi2_null = np.sum(w * (y_good**2))
     chi2_model = np.sum(w * ((y_good - A_global * model_base) ** 2))
     delta_global = chi2_null - chi2_model
 
@@ -192,14 +198,14 @@ def detect_solar_events(
         ee = e[mask_year]
         yy = y[mask_year]
         ss = s[mask_year]
-        ww = 1.0 / (ss ** 2)
+        ww = 1.0 / (ss**2)
         ff = freq[mask_year] if freq is not None else None
 
         tau_year = _optimize_tau(alpha, ee, yy, ww, ff)
         if not np.isfinite(tau_year):
             continue
         if freq_dependence:
-            ff_term = ff ** alpha
+            ff_term = ff**alpha
         else:
             ff_term = 1.0
         base = np.exp(-ee / tau_year) / ff_term
@@ -209,7 +215,7 @@ def detect_solar_events(
         A_year = np.sum(ww * base * yy) / denom
         if not np.isfinite(A_year):
             continue
-        chi2_null = np.sum(ww * (yy ** 2))
+        chi2_null = np.sum(ww * (yy**2))
         chi2_model = np.sum(ww * ((yy - A_year * base) ** 2))
         delta_year = chi2_null - chi2_model
 
@@ -227,7 +233,7 @@ def detect_solar_events(
 
     model = np.exp(-e / out["solar_event_tau"].to_numpy(dtype=float))
     if freq_dependence and freq is not None:
-        model = model / (freq ** alpha)
+        model = model / (freq**alpha)
     model = model * out["solar_event_amp"].to_numpy(dtype=float)
     z = np.abs(model) / s
     member = np.isfinite(z) & (z >= float(member_eta))

@@ -62,9 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
     Returns:
         argparse.ArgumentParser: Configured parser for PTA QC options.
     """
-    p = argparse.ArgumentParser(
-        description="PTA residual QC: outliers + event detection"
-    )
+    p = argparse.ArgumentParser(description="PTA residual QC: outliers + event detection")
 
     p.add_argument(
         "--par", required=True, help="Path to pulsar .par file. Expects a sibling *_all.tim."

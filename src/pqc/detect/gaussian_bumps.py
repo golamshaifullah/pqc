@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+
 def scan_gaussian_bumps(
     df: pd.DataFrame,
     *,
@@ -72,10 +73,6 @@ def scan_gaussian_bumps(
         return out
 
     t_good = t[good]
-    y_good = y[good]
-    s_good = s[good]
-    w_good = 1.0 / (s_good ** 2)
-    f_good = freq[good] if freq is not None else None
 
     durations = np.linspace(float(min_duration_days), float(max_duration_days), int(n_durations))
     models = ("gaussian", "laplace", "plateau")
@@ -96,22 +93,31 @@ def scan_gaussian_bumps(
         out[shoulder] = np.exp(-(d[shoulder] - half) / tau)
         return out
 
-    def _delta_for_alpha(alpha: float, tt: np.ndarray, yy: np.ndarray, ww: np.ndarray, ff: np.ndarray | None, base: np.ndarray) -> float:
+    def _delta_for_alpha(
+        alpha: float,
+        tt: np.ndarray,
+        yy: np.ndarray,
+        ww: np.ndarray,
+        ff: np.ndarray | None,
+        base: np.ndarray,
+    ) -> float:
         if ff is None:
             model = base
         else:
-            model = base / (ff ** alpha)
+            model = base / (ff**alpha)
         denom = np.sum(ww * model * model)
         if denom <= 0:
             return -np.inf
         A = np.sum(ww * model * yy) / denom
         if not np.isfinite(A):
             return -np.inf
-        chi2_null = np.sum(ww * (yy ** 2))
+        chi2_null = np.sum(ww * (yy**2))
         chi2_model = np.sum(ww * ((yy - A * model) ** 2))
         return chi2_null - chi2_model
 
-    def _optimize_alpha(tt: np.ndarray, yy: np.ndarray, ww: np.ndarray, ff: np.ndarray | None, base: np.ndarray) -> tuple[float, float]:
+    def _optimize_alpha(
+        tt: np.ndarray, yy: np.ndarray, ww: np.ndarray, ff: np.ndarray | None, base: np.ndarray
+    ) -> tuple[float, float]:
         a = float(freq_alpha_min)
         b = float(freq_alpha_max)
         if not np.isfinite(a) or not np.isfinite(b) or b <= a:
@@ -164,10 +170,14 @@ def scan_gaussian_bumps(
                 if not np.isfinite(delta):
                     continue
                 if delta >= float(delta_chi2_thresh):
-                    denom = np.sum(ww * base * base) if ff is None else np.sum(ww * (base / (ff ** alpha)) ** 2)
+                    denom = (
+                        np.sum(ww * base * base)
+                        if ff is None
+                        else np.sum(ww * (base / (ff**alpha)) ** 2)
+                    )
                     if denom <= 0:
                         continue
-                    model = base if ff is None else base / (ff ** alpha)
+                    model = base if ff is None else base / (ff**alpha)
                     A = np.sum(ww * model * yy) / denom
                     if not np.isfinite(A):
                         continue

@@ -163,6 +163,7 @@ class ExpDipConfig:
         freq_alpha_max_iter (int): Max iterations for alpha optimization.
         scope (str): One of ``backend``, ``global``, or ``both``.
     """
+
     tau_rec_days: float = 30.0
     window_mult: float = 5.0
     min_points: int = 6
@@ -176,6 +177,7 @@ class ExpDipConfig:
     freq_alpha_tol: float = 1e-3
     freq_alpha_max_iter: int = 64
     scope: str = "global"
+
 
 @dataclass(frozen=True)
 class StepConfig:
@@ -343,6 +345,7 @@ class EclipseConfig:
         freq_alpha_tol (float): Tolerance for alpha optimization.
         freq_alpha_max_iter (int): Max iterations for alpha optimization.
     """
+
     enabled: bool = False
     center_phase: float = 0.25
     min_points: int = 30
@@ -359,6 +362,7 @@ class EclipseConfig:
 @dataclass(frozen=True)
 class GaussianBumpConfig:
     """Configure global Gaussian-bump event detection."""
+
     enabled: bool = False
     min_duration_days: float = 60.0
     max_duration_days: float = 1500.0

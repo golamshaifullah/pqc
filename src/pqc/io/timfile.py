@@ -208,7 +208,8 @@ def parse_all_timfiles(
                             "sat_corr": sat_corr,
                             "filename": parts[1],
                             "freq": float(_parse_float(parts[2])),
-                            "mjd": float(_parse_float(parts[3])) + time_offset_sec / SECONDS_PER_DAY,
+                            "mjd": float(_parse_float(parts[3]))
+                            + time_offset_sec / SECONDS_PER_DAY,
                             "toaerr_tim": float(_parse_float(parts[4])),
                             "tel": tel_tok if has_tel else "",
                             "_timfile": str(timfile),
@@ -243,7 +244,11 @@ def parse_all_timfiles(
                         num_idx = [j for j, tok in enumerate(parts) if _is_number(tok)]
                         trip = None
                         for j in num_idx:
-                            if j + 2 < len(parts) and _is_number(parts[j + 1]) and _is_number(parts[j + 2]):
+                            if (
+                                j + 2 < len(parts)
+                                and _is_number(parts[j + 1])
+                                and _is_number(parts[j + 2])
+                            ):
                                 trip = j
                                 break
                         if trip is None or trip == 0:
@@ -254,7 +259,9 @@ def parse_all_timfiles(
                         sat_val = None
                         if fname_idx - 1 >= 0 and _is_number(parts[fname_idx - 1]):
                             sat_val = float(_parse_float(parts[fname_idx - 1]))
-                        mjd = float(_parse_float(parts[trip + 1])) + time_offset_sec / SECONDS_PER_DAY
+                        mjd = (
+                            float(_parse_float(parts[trip + 1])) + time_offset_sec / SECONDS_PER_DAY
+                        )
                         tel_tok = parts[trip + 3] if trip + 3 < len(parts) else ""
                         has_tel = bool(tel_tok) and not _is_flag_name(tel_tok)
                         sat_raw = sat_val if sat_val is not None else mjd

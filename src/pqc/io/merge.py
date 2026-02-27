@@ -110,9 +110,9 @@ def merge_time_and_meta(
                 for col in dm.columns:
                     meta_col = f"{col}_meta" if col in dt.columns else col
                     if meta_col in merged.columns and meta_col in merged2.columns:
-                        merged.loc[mask_unmatched, meta_col] = merged2[
-                            meta_col
-                        ].reindex(merged.loc[mask_unmatched].index)
+                        merged.loc[mask_unmatched, meta_col] = merged2[meta_col].reindex(
+                            merged.loc[mask_unmatched].index
+                        )
 
     # Final fallback: if sat-based matching left gaps, try plain MJD matching.
     if "_timfile" in merged.columns and "mjd" in dm.columns:
@@ -137,7 +137,7 @@ def merge_time_and_meta(
                 for col in dm.columns:
                     meta_col = f"{col}_meta" if col in dt.columns else col
                     if meta_col in merged.columns and meta_col in merged3.columns:
-                        merged.loc[mask_unmatched, meta_col] = merged3[
-                            meta_col
-                        ].reindex(merged.loc[mask_unmatched].index)
+                        merged.loc[mask_unmatched, meta_col] = merged3[meta_col].reindex(
+                            merged.loc[mask_unmatched].index
+                        )
     return merged

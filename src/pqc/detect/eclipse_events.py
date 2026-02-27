@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+
 def detect_eclipse_events(
     df: pd.DataFrame,
     *,
@@ -73,7 +74,7 @@ def detect_eclipse_events(
             if f_good is None:
                 ff_term = 1.0
             else:
-                ff_term = f_good ** alpha
+                ff_term = f_good**alpha
             model_base = np.exp(-d_good / width) / ff_term
             denom = np.sum(w * model_base * model_base)
             if denom <= 0:
@@ -81,7 +82,7 @@ def detect_eclipse_events(
             A = np.sum(w * model_base * y) / denom
             if not np.isfinite(A):
                 return -np.inf
-            chi2_null = np.sum(w * (y ** 2))
+            chi2_null = np.sum(w * (y**2))
             chi2_model = np.sum(w * ((y - A * model_base) ** 2))
             return chi2_null - chi2_model
 
@@ -111,7 +112,7 @@ def detect_eclipse_events(
         if f_good is None:
             ff_term = 1.0
         else:
-            ff_term = f_good ** alpha
+            ff_term = f_good**alpha
         model_base = np.exp(-d_good / width) / ff_term
         denom = np.sum(w * model_base * model_base)
         if denom <= 0:
@@ -119,7 +120,7 @@ def detect_eclipse_events(
         A = np.sum(w * model_base * y) / denom
         if not np.isfinite(A):
             return -np.inf
-        chi2_null = np.sum(w * (y ** 2))
+        chi2_null = np.sum(w * (y**2))
         chi2_model = np.sum(w * ((y - A * model_base) ** 2))
         return chi2_null - chi2_model
 
@@ -156,7 +157,7 @@ def detect_eclipse_events(
     if f_good is None:
         ff_term = 1.0
     else:
-        ff_term = f_good ** alpha
+        ff_term = f_good**alpha
     base = np.exp(-d_good / width) / ff_term
     denom = np.sum(w * base * base)
     if denom <= 0:
@@ -164,7 +165,7 @@ def detect_eclipse_events(
     A = np.sum(w * base * y) / denom
     if not np.isfinite(A):
         return out
-    chi2_null = np.sum(w * (y ** 2))
+    chi2_null = np.sum(w * (y**2))
     chi2_model = np.sum(w * ((y - A * base) ** 2))
     delta = chi2_null - chi2_model
 
@@ -175,7 +176,7 @@ def detect_eclipse_events(
 
     model = np.exp(-d / width)
     if freq_dependence and freq is not None:
-        model = model / (freq ** alpha)
+        model = model / (freq**alpha)
     model = model * A
     z = np.abs(model) / sigma
     out["eclipse_event_member"] = np.isfinite(z) & (z >= float(member_eta))

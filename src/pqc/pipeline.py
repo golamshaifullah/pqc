@@ -31,12 +31,12 @@ import pandas as pd
 
 from pqc.config import (
     BadMeasConfig,
+    EclipseConfig,
     ExpDipConfig,
     FeatureConfig,
-    GlitchConfig,
     GaussianBumpConfig,
+    GlitchConfig,
     MergeConfig,
-    EclipseConfig,
     OrbitalPhaseCutConfig,
     OutlierGateConfig,
     PreprocConfig,
@@ -95,19 +95,32 @@ def _run_detection_stage(
     backend_col: str,
     bad_cfg: BadMeasConfig,
     tr_cfg: TransientConfig,
-    dip_cfg: ExpDipConfig,
+    dip_cfg: ExpDipConfig | None = None,
     struct_cfg: StructureConfig,
     step_cfg: StepConfig,
     dm_cfg: StepConfig,
     robust_cfg: RobustOutlierConfig,
     preproc_cfg: PreprocConfig,
     gate_cfg: OutlierGateConfig,
-    solar_cfg: SolarCutConfig,
-    orbital_cfg: OrbitalPhaseCutConfig,
-    eclipse_cfg: EclipseConfig,
-    bump_cfg: GaussianBumpConfig,
-    glitch_cfg: GlitchConfig,
+    solar_cfg: SolarCutConfig | None = None,
+    orbital_cfg: OrbitalPhaseCutConfig | None = None,
+    eclipse_cfg: EclipseConfig | None = None,
+    bump_cfg: GaussianBumpConfig | None = None,
+    glitch_cfg: GlitchConfig | None = None,
 ) -> pd.DataFrame:
+    if dip_cfg is None:
+        dip_cfg = ExpDipConfig()
+    if solar_cfg is None:
+        solar_cfg = SolarCutConfig()
+    if orbital_cfg is None:
+        orbital_cfg = OrbitalPhaseCutConfig()
+    if eclipse_cfg is None:
+        eclipse_cfg = EclipseConfig()
+    if bump_cfg is None:
+        bump_cfg = GaussianBumpConfig()
+    if glitch_cfg is None:
+        glitch_cfg = GlitchConfig()
+
     def _apply_grouped_global_step(
         frame: pd.DataFrame,
         *,
@@ -317,7 +330,6 @@ def _run_detection_stage(
                 )
 
         return frame
-
 
     out = []
     do_detrend = struct_cfg.mode in ("detrend", "both")

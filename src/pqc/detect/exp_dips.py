@@ -10,6 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+
 def scan_exp_dips(
     df: pd.DataFrame,
     *,
@@ -63,15 +64,18 @@ def scan_exp_dips(
         return d
 
     w_end = window_mult * tau_rec_days
-    def _delta_for_alpha(alpha: float, tt: np.ndarray, yy: np.ndarray, ww: np.ndarray, ff: np.ndarray) -> float:
-        f = np.exp(-tt / tau_rec_days) / (ff ** alpha)
+
+    def _delta_for_alpha(
+        alpha: float, tt: np.ndarray, yy: np.ndarray, ww: np.ndarray, ff: np.ndarray
+    ) -> float:
+        f = np.exp(-tt / tau_rec_days) / (ff**alpha)
         denom = np.sum(ww * f * f)
         if denom <= 0:
             return -np.inf
         A = np.sum(ww * f * yy) / denom
         if not np.isfinite(A) or A >= 0:
             return -np.inf
-        chi2_null = np.sum(ww * (yy ** 2))
+        chi2_null = np.sum(ww * (yy**2))
         chi2_model = np.sum(ww * ((yy - A * f) ** 2))
         return chi2_null - chi2_model
 
@@ -133,7 +137,7 @@ def scan_exp_dips(
             ff = ff[goodf]
             alpha, delta = _optimize_alpha(tt, yy, ww, ff)
             if np.isfinite(alpha) and np.isfinite(delta):
-                f = np.exp(-tt / tau_rec_days) / (ff ** alpha)
+                f = np.exp(-tt / tau_rec_days) / (ff**alpha)
                 denom = np.sum(ww * f * f)
                 if denom > 0:
                     A = np.sum(ww * f * yy) / denom
@@ -145,7 +149,7 @@ def scan_exp_dips(
             if denom > 0:
                 A = np.sum(ww * f * yy) / denom
                 if np.isfinite(A) and A < 0:
-                    chi2_null = np.sum(ww * (yy ** 2))
+                    chi2_null = np.sum(ww * (yy**2))
                     chi2_model = np.sum(ww * ((yy - A * f) ** 2))
                     delta = chi2_null - chi2_model
                     best = (A, delta, np.nan)
@@ -187,7 +191,7 @@ def scan_exp_dips(
             z_pt[in_win] = np.where(good, np.abs(model) / sig, np.nan)
         member = in_win.copy()
         if np.isfinite(member_eta):
-            member &= (z_pt >= float(member_eta))
+            member &= z_pt >= float(member_eta)
         # Ensure the seed (t0) is always included when it is a valid point.
         if force_minimum_member:
             member[idx0] = True
