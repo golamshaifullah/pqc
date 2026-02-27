@@ -19,9 +19,10 @@ classifiers = [
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Astronomy",
 ]
-urls = {Repository = "https://github.com/golamshaifullah/pqc"}
+urls = {Repository = "https://github.com/golamshaifullah/pqc", Documentation = "https://golamshaifullah.github.io/pqc/"}
 dependencies = [
     "numpy",
     "pandas",

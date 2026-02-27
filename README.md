@@ -1,5 +1,10 @@
 # PQC
 
+[![CI](https://github.com/golamshaifullah/pqc/actions/workflows/ci.yml/badge.svg)](https://github.com/golamshaifullah/pqc/actions/workflows/ci.yml)
+[![Docs](https://github.com/golamshaifullah/pqc/actions/workflows/ci.yml/badge.svg?branch=main)](https://golamshaifullah.github.io/pqc/)
+
+Documentation: https://golamshaifullah.github.io/pqc/
+
 PQC is a lightweight quality-control toolkit for pulsar timing array (PTA)
 residuals. It parses tempo2 timfiles, loads TOA/residual arrays via libstempo,
 merges timing arrays with timfile metadata, normalizes backend keys, and
@@ -35,6 +40,26 @@ pip install -e ".[libstempo]"
 ```
 
 ## Usage
+
+How input discovery works
+-------------------------
+
+`pqc` does **not** infer residuals from a `.par` file alone.
+It uses a strict two-file convention:
+
+- you pass `X.par`
+- `pqc` looks for a sibling `X_all.tim` in the same directory
+
+Then it does two separate reads:
+
+1. `libstempo` loads timing arrays from the `.par + _all.tim` pair
+   (`mjd`, `resid`, `sigma`, `freq`, ...).
+2. `pqc.io.timfile.parse_all_timfiles` parses `X_all.tim` (with recursive
+   `INCLUDE`) to read tim metadata and flags.
+
+Those two tables are merged by MJD/frequency tolerance in the pipeline.
+
+If `X_all.tim` is missing, `run_pipeline` raises `FileNotFoundError`.
 
 CLI (basic run):
 
@@ -160,6 +185,12 @@ pqc --par /path/to/pulsar.par --out out.csv \
 
 - Overview and examples: this README
 - CLI help: run `pqc --help`
+- Hosted docs (GitHub Pages): `https://golamshaifullah.github.io/pqc/`
+
+## Contributing
+
+See `CONTRIBUTING.md` for development setup, required checks, and pull-request
+guidelines/templates.
 
 ## Release Notes
 

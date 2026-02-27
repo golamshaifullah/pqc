@@ -9,6 +9,18 @@ index page should include narrative sections such as Overview, Installation,
 Quickstart, Concepts, and Examples. If the TOC looks sparse, run a clean build
 (``make clean && make html``).
 
+How can PQC load residuals when I only pass a ``.par`` file?
+-------------------------------------------------------------
+
+It uses a filename convention, not inference from ``.par`` alone.
+
+If you pass ``/path/X.par``, PQC requires ``/path/X_all.tim`` and uses that
+pair in ``libstempo`` to load residual arrays. In parallel, PQC parses the
+``_all.tim`` tree (including ``INCLUDE``) to collect tim metadata and flags,
+then merges both tables before detection.
+
+If ``X_all.tim`` is missing, the pipeline fails with ``FileNotFoundError``.
+
 How do I plot event membership?
 -------------------------------
 

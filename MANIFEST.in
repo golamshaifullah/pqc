@@ -1,2 +1,4 @@
 global-exclude __pycache__ *.py[cod] *.py~
+include LICENSE
+include README.md
 recursive-include src/pqc/data *.dat

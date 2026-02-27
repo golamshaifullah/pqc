@@ -8,6 +8,22 @@ PQC expects a ``.par`` file and a sibling ``*_all.tim`` file produced by
 tempo2. Example: ``J1909-3744.par`` and ``J1909-3744_all.tim`` in the same
 directory.
 
+How this actually loads data
+----------------------------
+
+PQC does not compute residuals from ``.par`` by itself. It requires both:
+
+- ``X.par``
+- ``X_all.tim`` (same directory; discovered by filename convention)
+
+The pipeline then performs two reads:
+
+1. ``libstempo`` loads timing arrays from the ``.par + _all.tim`` pair.
+2. PQC parses ``X_all.tim`` (including recursive ``INCLUDE`` files) to collect
+   tim metadata/flags.
+
+These are merged into a single table for QC.
+
 CLI (fastest path)
 ------------------
 
