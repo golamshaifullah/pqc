@@ -1017,7 +1017,7 @@ def run_pipeline(
 
     This function reads the ``.par`` file and its sibling ``*_all.tim``,
     constructs timing and metadata tables, adds optional feature columns, and
-    annotates each TOA with QC flags and transient detections.
+    annotates each TOA with QC flags and event detections.
 
     Args:
         parfile (str | Path): Path to the pulsar ``.par`` file. A sibling
@@ -1056,8 +1056,8 @@ def run_pipeline(
         ``transient_id``, ``exp_dip_id``, ``exp_dip_member``, ``solar_event_member``,
         ``glitch_id``, ``glitch_member``, ``step_id``, ``dm_step_id``,
         ``step_applicable``, ``step_informative``, ``dm_step_applicable``,
-        ``dm_step_informative``, and ``outlier_any``
-        (deprecated for plotting/summary). If enabled, feature columns such as
+        ``dm_step_informative``, and ``outlier_any`` (compatibility field:
+        ``bad_point OR event_member``). If enabled, feature columns such as
         ``orbital_phase`` and ``solar_elongation_deg`` are added, plus
         structure-test summaries (``structure_*`` and
         ``structure_present_<feature>``) and optional preprocessing columns

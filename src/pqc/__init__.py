@@ -10,7 +10,9 @@ Key capabilities include:
     - Loading TOA/residual arrays via libstempo.
     - Merging timing arrays with timfile metadata.
     - Normalizing backend keys (``sys``/``group``) for per-backend analysis.
-    - Detecting bad measurements and transient exponential recoveries.
+    - Detecting bad measurements, transients, step/DM-step events.
+    - Detecting global astrophysical events (exp-dips, solar, eclipses,
+      gaussian-bumps, glitches).
     - Optional feature extraction and feature-domain structure diagnostics.
 
 Most users should start with :func:`pqc.pipeline.run_pipeline` or the CLI

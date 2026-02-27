@@ -63,7 +63,7 @@ def build_parser() -> argparse.ArgumentParser:
         argparse.ArgumentParser: Configured parser for PTA QC options.
     """
     p = argparse.ArgumentParser(
-        description="PTA residual QC: bad measurements + exponential transients"
+        description="PTA residual QC: outliers + event detection"
     )
 
     p.add_argument(
