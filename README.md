@@ -28,6 +28,12 @@ Editable install (for development):
 pip install -e .
 ```
 
+Install with full runtime support (libstempo required by pipeline execution):
+
+```bash
+pip install -e ".[libstempo]"
+```
+
 ## Usage
 
 CLI (basic run):
@@ -154,6 +160,15 @@ pqc --par /path/to/pulsar.par --out out.csv \
 
 - Overview and examples: this README
 - CLI help: run `pqc --help`
+
+## Release Notes
+
+Build and validate distributions locally:
+
+```bash
+python -m build
+python -m twine check dist/*
+```
 
 ## API Details
 

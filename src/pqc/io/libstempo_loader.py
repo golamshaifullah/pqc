@@ -13,9 +13,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import libstempo as lt
 import numpy as np
 import pandas as pd
+
+try:
+    import libstempo as lt
+except Exception:  # pragma: no cover - environment-dependent import
+    lt = None
 
 
 def load_libstempo(parfile: str | Path) -> pd.DataFrame:
@@ -50,6 +54,10 @@ def load_libstempo(parfile: str | Path) -> pd.DataFrame:
     all_tim = str(parfile).replace(".par", "_all.tim")
     if not Path(all_tim).exists():
         raise FileNotFoundError(all_tim)
+    if lt is None:
+        raise ModuleNotFoundError(
+            "libstempo is required to run the pipeline. Install with: pip install 'pqc[libstempo]'"
+        )
 
     psr = lt.tempopulsar(parfile=str(parfile), timfile=str(all_tim), maxobs=120000)
 
