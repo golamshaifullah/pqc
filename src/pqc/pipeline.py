@@ -925,6 +925,48 @@ def _run_detection_stage(
             if col in df_out.columns:
                 df_out.loc[glitch_mask, col] = False
         df_out.loc[glitch_mask, "bad_point"] = False
+    transient_mask = np.zeros(len(df_out), dtype=bool)
+    if "transient_id" in df_out.columns:
+        transient_mask |= df_out["transient_id"].fillna(-1).to_numpy() >= 0
+    if "transient_global_id" in df_out.columns:
+        transient_mask |= df_out["transient_global_id"].fillna(-1).to_numpy() >= 0
+    if np.any(transient_mask):
+        if "bad_ou" in df_out.columns:
+            df_out.loc[transient_mask, "bad_ou"] = False
+        if "bad_mad" in df_out.columns:
+            df_out.loc[transient_mask, "bad_mad"] = False
+        if "bad_hard" in df_out.columns:
+            df_out.loc[transient_mask, "bad_hard"] = False
+        for col in ("robust_outlier", "robust_global_outlier"):
+            if col in df_out.columns:
+                df_out.loc[transient_mask, col] = False
+        df_out.loc[transient_mask, "bad_point"] = False
+    if "step_informative" in df_out.columns:
+        step_mask = df_out["step_informative"].fillna(False).to_numpy()
+        if np.any(step_mask):
+            if "bad_ou" in df_out.columns:
+                df_out.loc[step_mask, "bad_ou"] = False
+            if "bad_mad" in df_out.columns:
+                df_out.loc[step_mask, "bad_mad"] = False
+            if "bad_hard" in df_out.columns:
+                df_out.loc[step_mask, "bad_hard"] = False
+            for col in ("robust_outlier", "robust_global_outlier"):
+                if col in df_out.columns:
+                    df_out.loc[step_mask, col] = False
+            df_out.loc[step_mask, "bad_point"] = False
+    if "dm_step_informative" in df_out.columns:
+        dm_step_mask = df_out["dm_step_informative"].fillna(False).to_numpy()
+        if np.any(dm_step_mask):
+            if "bad_ou" in df_out.columns:
+                df_out.loc[dm_step_mask, "bad_ou"] = False
+            if "bad_mad" in df_out.columns:
+                df_out.loc[dm_step_mask, "bad_mad"] = False
+            if "bad_hard" in df_out.columns:
+                df_out.loc[dm_step_mask, "bad_hard"] = False
+            for col in ("robust_outlier", "robust_global_outlier"):
+                if col in df_out.columns:
+                    df_out.loc[dm_step_mask, col] = False
+            df_out.loc[dm_step_mask, "bad_point"] = False
     if orbital_cfg.enabled:
         if "orbital_phase" not in df_out.columns:
             warn("orbital phase not available; orbital phase cut disabled for this run.")
