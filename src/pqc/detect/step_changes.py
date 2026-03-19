@@ -1,4 +1,36 @@
-"""Detect step-like offsets in timing residuals."""
+"""Detect achromatic and DM-like step changes in timing residuals.
+
+This module fits single changepoint step models using weighted two-segment
+means and a likelihood-ratio-style statistic expressed as :math:`\\Delta\\chi^2`.
+It supports:
+
+- achromatic steps (constant amplitude after ``t0``), and
+- DM-like chromatic steps scaling as :math:`1/f^2`.
+
+Notes
+-----
+Statistic
+    For a split at index :math:`i`, let weighted means before/after be
+    :math:`\\mu_1, \\mu_2` with variances :math:`1/W_1, 1/W_2`. The step
+    contrast is :math:`\\delta=\\mu_2-\\mu_1` and score is
+    :math:`\\Delta\\chi^2 = \\delta^2/(1/W_1+1/W_2)`.
+
+Why used here
+    Step discontinuities are common signatures of timing-model offsets or
+    abrupt propagation/instrument changes.
+
+Assumptions
+    - One dominant changepoint in the tested series.
+    - Gaussian errors with known/estimated ``sigma``.
+    - Sorted times and enough points on each side of split.
+
+References
+----------
+.. [1] Lorimer, D. R., & Kramer, M. (2005), *Handbook of Pulsar Astronomy*.
+.. [2] Edwards, R. T., Hobbs, G. B., & Manchester, R. N. (2006), *MNRAS* 372.
+.. [3] Killick, R., Fearnhead, P., & Eckley, I. A. (2012), *JASA* 107(500),
+   1590-1598.
+"""
 
 from __future__ import annotations
 
@@ -54,10 +86,41 @@ def detect_step(
     instrument: bool = False,
     prefix: str = "step",
 ) -> pd.DataFrame:
-    """Detect a single step-like offset and annotate rows.
+    """Detect a single achromatic step-like offset and annotate rows.
 
     Returns a DataFrame with columns: <prefix>_id, <prefix>_t0, <prefix>_amp,
     <prefix>_delta_chi2. Rows are marked with id=0 for mjd >= t0.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Input timing table.
+    mjd_col, resid_col, sigma_col : str, optional
+        Column names for time, residual, and uncertainty.
+    min_points : int, optional
+        Minimum points required on each side of candidate split.
+    delta_chi2_thresh : float, optional
+        Minimum :math:`\\Delta\\chi^2` to accept a step candidate.
+    member_eta : float, optional
+        Membership threshold on :math:`|m_i|/\\sigma_i`.
+    member_tmax_days : float or None, optional
+        Maximum post-step membership horizon in days.
+    instrument : bool, optional
+        Emit diagnostics if True.
+    prefix : str, optional
+        Prefix for output columns.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Copy of input with step annotations and membership diagnostics.
+
+    Notes
+    -----
+    Worked example
+        With ``amp=2e-6`` s and ``sigma=5e-7`` s, per-point membership score
+        is :math:`z=|amp|/sigma=4`. For ``member_eta=1``, such points are
+        informative members.
     """
     out = df.copy()
     out[f"{prefix}_id"] = -1
@@ -166,9 +229,45 @@ def detect_dm_step(
     instrument: bool = False,
     prefix: str = "dm_step",
 ) -> pd.DataFrame:
-    """Detect step-like offsets consistent with DM events.
+    """Detect chromatic step offsets consistent with DM-like scaling.
 
     Uses residuals scaled by 1/freq^2 to normalize dispersion.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Input timing table.
+    mjd_col, resid_col, sigma_col, freq_col : str, optional
+        Column names for required inputs.
+    min_points : int, optional
+        Minimum points required on each side of split.
+    delta_chi2_thresh : float, optional
+        Acceptance threshold in :math:`\\Delta\\chi^2`.
+    member_eta : float, optional
+        Membership threshold on :math:`|m_i|/\\sigma_i`.
+    member_tmax_days : float or None, optional
+        Maximum post-step membership horizon in days.
+    instrument : bool, optional
+        Emit diagnostics if True.
+    prefix : str, optional
+        Prefix for output columns.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Copy of input with DM-step annotations and membership diagnostics.
+
+    Notes
+    -----
+    Formula
+        For frequency :math:`f`, model effect after ``t0`` is
+        :math:`m_i = A/f_i^2`. Membership score is
+        :math:`z_i = |A|/(f_i^2\\sigma_i)`.
+
+    Caveats
+    -------
+    Incorrect frequency metadata or non-dispersive chromatic effects can
+    mimic/obscure DM-step detection.
     """
     out = df.copy()
     out[f"{prefix}_id"] = -1
