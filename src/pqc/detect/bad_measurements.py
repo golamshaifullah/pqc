@@ -1,12 +1,58 @@
-"""Detect bad measurements via OU innovations and day-level FDR.
+"""Detect bad measurements using OU innovations and day-level FDR control.
 
-This module computes normalized innovations from an OU process and uses
-Benjamini–Hochberg false discovery rate control on day-level extremes to flag
-bad measurements.
+This module implements a two-stage statistical procedure:
 
-See Also:
-    pqc.detect.ou.ou_innovations_z: OU innovations used in this detector.
-    pqc.utils.stats.bh_fdr: Benjamini–Hochberg FDR control.
+1. **Model short-timescale correlated residuals** with an
+   Ornstein–Uhlenbeck (OU) process and compute normalized innovations
+   :math:`z_i`.
+2. **Control multiplicity across days** by converting daily maxima of
+   :math:`|z_i|` into p-values and applying Benjamini–Hochberg false
+   discovery rate (FDR) control.
+
+The OU step is used because pulsar timing residuals can be locally correlated;
+innovation whitening makes single-point surprises more interpretable. The
+day-level FDR step is used to reduce false positives under repeated testing.
+
+Notes
+-----
+Definition (OU innovations)
+    For irregularly sampled times :math:`t_i`, residuals :math:`y_i`, and
+    correlation timescale :math:`\\tau`, an OU predictor uses
+    :math:`\\phi_i = \\exp(-(t_i-t_{i-1})/\\tau)`. The innovation is
+    :math:`e_i = y_i - \\phi_i y_{i-1}` and the normalized innovation is
+    :math:`z_i = e_i / \\sqrt{\\mathrm{Var}(e_i)}`.
+
+Definition (FDR)
+    FDR is :math:`\\mathbb{E}[V/\\max(R,1)]`, where :math:`V` is number of
+    false rejections and :math:`R` is total rejections.
+
+Assumptions
+    - Innovations are approximately Gaussian under the null model.
+    - Day-level tests are independent or positively dependent (BH validity).
+    - A daily max-:math:`|z|` statistic captures day-level contamination.
+
+Interpretation
+    A flagged day indicates at least one measurement is unusually inconsistent
+    with OU-consistent noise at the chosen FDR level.
+
+Caveats
+    - Misspecified :math:`\\tau` or variance can distort p-values.
+    - Daily aggregation can lose within-day structure.
+    - Heavy tails can inflate false positives if Gaussian tails are assumed.
+
+Worked Example
+--------------
+Suppose day-level p-values are ``[0.001, 0.012, 0.08, 0.2]`` and
+``fdr_q = 0.02``. BH thresholds for sorted p-values are
+``[0.005, 0.01, 0.015, 0.02]``. Only ``0.001`` is below threshold, so one day
+is flagged.
+
+References
+----------
+.. [1] Uhlenbeck, G. E., & Ornstein, L. S. (1930), *Physical Review*, 36, 823.
+.. [2] Benjamini, Y., & Hochberg, Y. (1995), *JRSS B*, 57(1), 289-300.
+.. [3] Brockwell, P. J., & Davis, R. A. (2002), *Introduction to Time Series
+   and Forecasting*, 2nd ed.
 """
 
 from __future__ import annotations
@@ -56,10 +102,33 @@ def detect_bad(
         pandas.DataFrame: Copy with added columns ``z``, ``_q_hat``,
         ``bad_day``, and ``bad``.
 
+    Raises:
+        KeyError
+            If any required columns are missing from ``df``.
+        ValueError
+            If numeric coercion yields invalid arrays for core computations.
+
     Notes:
-        This function expects ``df`` to contain finite values in ``mjd_col``,
-        ``resid_col``, and ``sigma_col``. Rows with invalid innovations are
-        preserved but will not be considered for day-level testing.
+        **Statistic and formula**
+            Let :math:`z_i` be normalized OU innovations.
+            For each day :math:`d`, compute
+            :math:`T_d = \\max_{i \\in d}|z_i|`.
+            Under a Gaussian-tail approximation, the two-sided p-value is
+            :math:`p_d = 2(1-\\Phi(T_d))`.
+            BH is applied to :math:`p_d` at level ``fdr_q``.
+
+        **Why used here**
+            Day-level FDR gives operationally robust triage while controlling
+            expected false discovery fraction across many days.
+
+        **Interpretation**
+            ``bad_day=True`` marks days rejected by BH; ``bad=True`` marks
+            either the worst TOA per bad day or all TOAs in each bad day,
+            controlled by ``mark_only_worst_per_day``.
+
+        **Caveats**
+            If noise is strongly non-Gaussian or day definitions are poor,
+            p-values may be miscalibrated.
 
     Examples:
         >>> import pandas as pd

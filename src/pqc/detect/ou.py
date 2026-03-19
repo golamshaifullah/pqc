@@ -1,11 +1,36 @@
-"""Compute OU innovations and noise-scale estimates for irregular sampling.
+"""Compute OU innovations and auxiliary noise-scale estimates.
 
-We model short-term correlation via an Ornstein–Uhlenbeck (OU) process with
-correlation timescale ``tau_days`` and white-noise variance ``q``.
+This module provides the core OU-statistics used by bad-measurement detection.
+For irregularly sampled residuals, it computes normalized innovations under an
+Ornstein–Uhlenbeck (OU) model and estimates a non-negative extra variance
+parameter ``q`` using robust scale matching.
 
-See Also:
-    pqc.detect.bad_measurements.detect_bad: Uses OU innovations for outlier tests.
-    pqc.utils.stats.robust_scale_mad: Robust scale estimator used for q fitting.
+Notes
+-----
+Definition (OU process)
+    Continuous-time mean-reverting Gaussian process:
+    :math:`dX_t = -\\theta X_t dt + \\sigma dW_t`, with
+    :math:`\\tau = 1/\\theta` as correlation timescale.
+
+Discretization used here
+    For intervals :math:`\\Delta t_i`, use
+    :math:`\\phi_i = \\exp(-\\Delta t_i/\\tau)` and innovation
+    :math:`e_i = y_i - \\phi_i y_{i-1}`.
+
+Why used here
+    Residuals are often serially correlated on short scales; innovation
+    normalization approximates whitened residual surprises.
+
+Assumptions
+    - Locally stationary correlation structure represented by OU.
+    - Approximate Gaussianity of innovations for downstream p-values.
+    - Correct time ordering of observations.
+
+References
+----------
+.. [1] Uhlenbeck, G. E., & Ornstein, L. S. (1930), *Physical Review*, 36, 823.
+.. [2] Gardiner, C. (2009), *Stochastic Methods*, 4th ed.
+.. [3] Rousseeuw, P. J., & Croux, C. (1993), *JASA*, 88(424), 1273-1283.
 """
 
 from __future__ import annotations
@@ -39,9 +64,31 @@ def ou_innovations_z(
         np.ndarray: Normalized innovations ``z`` with ``NaN`` for invalid
         entries.
 
+    Raises:
+        ValueError
+            If array lengths are inconsistent.
+
     Notes:
-        The returned array is aligned with the input ordering of ``t_days`` and
-        assumes adjacent samples are time-ordered.
+        **Formula**
+            Let :math:`\\phi_i = \\exp(-(t_i-t_{i-1})/\\tau)`.
+            Then
+
+            .. math::
+               e_i = y_i - \\phi_i y_{i-1},
+               \\quad
+               v_i = \\sigma_i^2 + \\phi_i^2\\sigma_{i-1}^2 + q(1-\\phi_i^2),
+               \\quad
+               z_i = e_i/\\sqrt{v_i}.
+
+            For :math:`i=0`, :math:`z_0 = y_0 / \\sqrt{\\sigma_0^2 + q}`.
+
+        **Interpretation**
+            ``|z_i|`` near 0 indicates consistency with OU-noise prediction;
+            larger values indicate local deviations.
+
+        **Caveats**
+            Non-monotonic times or severe heteroscedastic model misspecification
+            can make ``z`` hard to interpret.
 
     Examples:
         >>> ou_innovations_z([0.0, 1.0], [0.1, 0.0], [1.0, 1.0], tau_days=10.0, q=0.0).shape
@@ -75,7 +122,7 @@ def estimate_q(
     tau_days: float,
     q_max_factor: float = 100.0,
 ) -> float:
-    """Estimate ``q`` by matching the robust scale of innovations to unity.
+    """Estimate ``q`` by matching robust innovation scale to unity.
 
     A binary search selects ``q >= 0`` so the MAD-based scale of ``z`` is
     approximately 1.0.
@@ -93,8 +140,25 @@ def estimate_q(
     Returns:
         float: Estimated non-negative ``q`` value.
 
+    Raises:
+        ValueError
+            If numeric conversion fails for required arrays.
+
     Notes:
-        If the innovations already have robust scale ≤ 1, the estimate is 0.
+        **Estimator definition**
+            Define :math:`s(q) = \\mathrm{MAD}(z(q))/0.67449`. Solve
+            :math:`s(q) \\approx 1` over :math:`q \\ge 0` by bisection.
+
+        **Why used here**
+            Robust scale matching prevents a few outliers from strongly
+            biasing variance inflation.
+
+        **Assumptions**
+            Monotonic decrease of robust scale as ``q`` increases, sufficient
+            sample size for stable MAD.
+
+        **Caveats**
+            For very short series, estimator may return boundary values.
 
     Examples:
         >>> estimate_q([0.0, 1.0, 2.0], [0.1, 0.0, -0.1], [1.0, 1.0, 1.0], tau_days=10.0) >= 0.0

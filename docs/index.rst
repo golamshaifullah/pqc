@@ -9,6 +9,7 @@ PQC Documentation
    installation
    quickstart
    concepts
+   statistics/index
    cli
    examples
    faq
