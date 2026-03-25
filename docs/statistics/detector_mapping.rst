@@ -15,6 +15,9 @@ Summary table
 +--------------------------+------------------------------+-----------------------------+---------------------------+
 | Robust outliers          | Median/MAD robust z-score    | ``z_thresh``                | majority inliers, MAD>0   |
 +--------------------------+------------------------------+-----------------------------+---------------------------+
+| DM_DVT+20 hard detector  | Dynamic threshold on         | fixed: :math:`4k`,          | finite ``sigma``,         |
+|                          | :math:`|r_i|/\sigma_i`       | :math:`k=\max(1,\overline{|r|/\sigma})` | representative mean score |
++--------------------------+------------------------------+-----------------------------+---------------------------+
 | Transients               | Exponential template +       | ``delta_chi2_thresh``,      | single dominant           |
 |                          | :math:`\Delta\chi^2`         | ``member_eta``              | recovery in window        |
 +--------------------------+------------------------------+-----------------------------+---------------------------+
@@ -63,6 +66,20 @@ Uses robust standardized residuals:
    z_i = 0.6745\frac{y_i-\mathrm{median}(y)}{\mathrm{MAD}}
 
 Flags points with :math:`|z_i| \ge z_\mathrm{thresh}`.
+
+DM_DVT+20 hard detector
+~~~~~~~~~~~~~~~~~~~~~~~
+
+PQC also applies a dynamic hard rule:
+
+.. math::
+
+   s_i = |r_i|/\sigma_i, \qquad
+   k = \max\left(1,\ \frac{1}{N}\sum_i s_i\right), \qquad
+   s_i > 4k \Rightarrow \texttt{BAD\_DM\_DVT+20}.
+
+This provides a robust, dataset-adaptive hard flag on extreme normalized
+residuals and is recorded in ``bad_dm_dvt`` / ``bad_dm_dvt_label``.
 
 Event detectors (:math:`\Delta\chi^2` family)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -113,3 +130,5 @@ References
 .. [Edwards2006] Edwards, R. T., Hobbs, G. B., & Manchester, R. N. (2006).
    "tempo2, a new pulsar timing package - II. The timing model and precision estimates."
    *MNRAS*, 372(4), 1549-1574.
+.. [Donner2020] Donner, J. Y., et al. (2020).
+   *A&A*, 644, A153. https://doi.org/10.1051/0004-6361/202039517

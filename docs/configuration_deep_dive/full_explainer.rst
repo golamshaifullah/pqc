@@ -622,6 +622,31 @@ That would exceed the threshold and be a candidate outlier.
 
 This detector is useful because not every failure mode looks like a clean transient or step.
 
+12.1 DM_DVT+20 hard detector
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+An additional hard detector is defined by:
+
+.. math::
+
+   s_i = |r_i|/\sigma_i
+
+.. math::
+
+   k = \max\left(1, \frac{1}{N}\sum_i s_i\right)
+
+TOA :math:`i` is flagged as ``BAD_DM_DVT+20`` if:
+
+.. math::
+
+   s_i > 4k.
+
+This rule adapts to the dataset-wide normalized residual level while enforcing
+minimum scale :math:`k \ge 1`. In PQC outputs this appears in
+``bad_dm_dvt``, ``bad_dm_dvt_k``, ``bad_dm_dvt_score``, and
+``bad_dm_dvt_label``. The rule follows the requested DM DVT+20 formulation
+and is documented here with the reference context in [7]_.
+
 13. Detector preprocessing (``preproc_cfg``) and hard sigma gate (``gate_cfg``)
 --------------------------------------------------------------------------------
 
@@ -1000,3 +1025,4 @@ References
 .. [4] https://openaccess.inaf.it/bitstreams/ccde2595-3f3f-491b-80a9-2fca90091e1d/download
 .. [5] https://www.raa-journal.org/issues/all/2006/v6ns2/202203/P020220325510334550552.pdf
 .. [6] https://www.boa.unimib.it/retrieve/d5999fa6-3891-4cc6-81c0-5fb1d87a55b1/Iraci-2024-Astronomy%20Astrophys-VoR.pdf
+.. [7] Donner, J. Y., et al. (2020), *A&A*, 644, A153. https://doi.org/10.1051/0004-6361/202039517
