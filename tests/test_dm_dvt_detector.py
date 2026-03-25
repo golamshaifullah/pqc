@@ -35,7 +35,7 @@ def test_dm_dvt_flags_with_clamped_k():
         df,
         backend_col="group",
         bad_cfg=BadMeasConfig(tau_corr_days=0.0, fdr_q=0.0, mark_only_worst_per_day=True),
-        tr_cfg=TransientConfig(enabled=False),
+        tr_cfg=TransientConfig(min_points=10_000, delta_chi2_thresh=1e9),
         struct_cfg=StructureConfig(mode="none"),
         step_cfg=StepConfig(enabled=False),
         dm_cfg=StepConfig(enabled=False),
