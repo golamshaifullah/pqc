@@ -34,6 +34,17 @@ Outliers are identified via innovation statistics and multiple-testing control.
 The Benjamini-Hochberg procedure controls the false discovery rate (FDR) by
 comparing ordered p-values to a linearly increasing threshold [BH1995]_.
 
+PQC also applies a dynamic hard detector on normalized residuals:
+
+.. math::
+
+   s_i = |r_i|/\sigma_i,\qquad
+   k = \max\left(1, \frac{1}{N}\sum_i s_i\right),\qquad
+   s_i > 4k \Rightarrow \texttt{BAD\_DM\_DVT+20}.
+
+This detector is exposed in output columns ``bad_dm_dvt`` and
+``bad_dm_dvt_label`` [Donner2020]_.
+
 Transient events
 ----------------
 
@@ -118,3 +129,5 @@ References
    citeturn2search0
 .. [LKH2005] Lorimer, D. R., & Kramer, M. (2005). *Handbook of Pulsar Astronomy*.
    Cambridge University Press. citeturn1search3
+.. [Donner2020] Donner, J. Y., et al. (2020). *A&A*, 644, A153.
+   https://doi.org/10.1051/0004-6361/202039517

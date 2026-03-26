@@ -788,6 +788,28 @@ def _run_detection_stage(
             if col in df_out.columns:
                 df_out.loc[gate_inlier, col] = False
 
+    # DM_DVT+20-style hard detector:
+    # k = mean(|r_i|/sigma_i), clamped to >= 1. Flag if |r_i|/sigma_i > 4*k.
+    df_out["bad_dm_dvt"] = False
+    df_out["bad_dm_dvt_k"] = np.nan
+    df_out["bad_dm_dvt_score"] = np.nan
+    df_out["bad_dm_dvt_label"] = ""
+    rr = pd.to_numeric(df_out[ou_resid], errors="coerce").to_numpy(dtype=float)
+    ss = pd.to_numeric(df_out[ou_sigma], errors="coerce").to_numpy(dtype=float)
+    valid_dm_dvt = np.isfinite(rr) & np.isfinite(ss) & (ss > 0)
+    if np.any(valid_dm_dvt):
+        score = np.full(len(df_out), np.nan, dtype=float)
+        score[valid_dm_dvt] = np.abs(rr[valid_dm_dvt]) / ss[valid_dm_dvt]
+        k_dm_dvt = float(np.nanmean(score[valid_dm_dvt]))
+        if not np.isfinite(k_dm_dvt) or k_dm_dvt < 1.0:
+            k_dm_dvt = 1.0
+        bad_dm_dvt = np.zeros(len(df_out), dtype=bool)
+        bad_dm_dvt[valid_dm_dvt] = score[valid_dm_dvt] > (4.0 * k_dm_dvt)
+        df_out["bad_dm_dvt"] = bad_dm_dvt
+        df_out["bad_dm_dvt_k"] = k_dm_dvt
+        df_out["bad_dm_dvt_score"] = score
+        df_out.loc[bad_dm_dvt, "bad_dm_dvt_label"] = "BAD_DM_DVT+20"
+
     df_out["bad_point"] = False
     df_out["bad_point"] |= df_out.get("bad_ou", False).fillna(False)
     df_out["bad_point"] |= df_out.get("bad_mad", False).fillna(False)
@@ -795,6 +817,8 @@ def _run_detection_stage(
         df_out["bad_point"] |= df_out["robust_outlier"].fillna(False)
     if "bad_hard" in df_out.columns:
         df_out["bad_point"] |= df_out["bad_hard"].fillna(False)
+    if "bad_dm_dvt" in df_out.columns:
+        df_out["bad_point"] |= df_out["bad_dm_dvt"].fillna(False)
 
     if solar_cfg.enabled:
         df_out = detect_solar_events(
@@ -925,6 +949,71 @@ def _run_detection_stage(
             if col in df_out.columns:
                 df_out.loc[glitch_mask, col] = False
         df_out.loc[glitch_mask, "bad_point"] = False
+    transient_mask = np.zeros(len(df_out), dtype=bool)
+    if "transient_id" in df_out.columns:
+        transient_mask |= df_out["transient_id"].fillna(-1).to_numpy() >= 0
+    if "transient_global_id" in df_out.columns:
+        transient_mask |= df_out["transient_global_id"].fillna(-1).to_numpy() >= 0
+    if np.any(transient_mask):
+        if "bad_ou" in df_out.columns:
+            df_out.loc[transient_mask, "bad_ou"] = False
+        if "bad_mad" in df_out.columns:
+            df_out.loc[transient_mask, "bad_mad"] = False
+        if "bad_hard" in df_out.columns:
+            df_out.loc[transient_mask, "bad_hard"] = False
+        for col in ("robust_outlier", "robust_global_outlier"):
+            if col in df_out.columns:
+                df_out.loc[transient_mask, col] = False
+        df_out.loc[transient_mask, "bad_point"] = False
+    step_mask = np.zeros(len(df_out), dtype=bool)
+    if "step_informative" in df_out.columns:
+        step_mask |= df_out["step_informative"].fillna(False).to_numpy()
+    if "step_applicable" in df_out.columns:
+        step_mask |= df_out["step_applicable"].fillna(False).to_numpy()
+    if "step_global_informative" in df_out.columns:
+        step_mask |= df_out["step_global_informative"].fillna(False).to_numpy()
+    if "step_global_applicable" in df_out.columns:
+        step_mask |= df_out["step_global_applicable"].fillna(False).to_numpy()
+    if "step_id" in df_out.columns:
+        step_mask |= df_out["step_id"].fillna(-1).to_numpy() >= 0
+    if "step_global_id" in df_out.columns:
+        step_mask |= df_out["step_global_id"].fillna(-1).to_numpy() >= 0
+    if np.any(step_mask):
+        if "bad_ou" in df_out.columns:
+            df_out.loc[step_mask, "bad_ou"] = False
+        if "bad_mad" in df_out.columns:
+            df_out.loc[step_mask, "bad_mad"] = False
+        if "bad_hard" in df_out.columns:
+            df_out.loc[step_mask, "bad_hard"] = False
+        for col in ("robust_outlier", "robust_global_outlier"):
+            if col in df_out.columns:
+                df_out.loc[step_mask, col] = False
+        df_out.loc[step_mask, "bad_point"] = False
+
+    dm_step_mask = np.zeros(len(df_out), dtype=bool)
+    if "dm_step_informative" in df_out.columns:
+        dm_step_mask |= df_out["dm_step_informative"].fillna(False).to_numpy()
+    if "dm_step_applicable" in df_out.columns:
+        dm_step_mask |= df_out["dm_step_applicable"].fillna(False).to_numpy()
+    if "dm_step_global_informative" in df_out.columns:
+        dm_step_mask |= df_out["dm_step_global_informative"].fillna(False).to_numpy()
+    if "dm_step_global_applicable" in df_out.columns:
+        dm_step_mask |= df_out["dm_step_global_applicable"].fillna(False).to_numpy()
+    if "dm_step_id" in df_out.columns:
+        dm_step_mask |= df_out["dm_step_id"].fillna(-1).to_numpy() >= 0
+    if "dm_step_global_id" in df_out.columns:
+        dm_step_mask |= df_out["dm_step_global_id"].fillna(-1).to_numpy() >= 0
+    if np.any(dm_step_mask):
+        if "bad_ou" in df_out.columns:
+            df_out.loc[dm_step_mask, "bad_ou"] = False
+        if "bad_mad" in df_out.columns:
+            df_out.loc[dm_step_mask, "bad_mad"] = False
+        if "bad_hard" in df_out.columns:
+            df_out.loc[dm_step_mask, "bad_hard"] = False
+        for col in ("robust_outlier", "robust_global_outlier"):
+            if col in df_out.columns:
+                df_out.loc[dm_step_mask, col] = False
+        df_out.loc[dm_step_mask, "bad_point"] = False
     if orbital_cfg.enabled:
         if "orbital_phase" not in df_out.columns:
             warn("orbital phase not available; orbital phase cut disabled for this run.")
@@ -1064,7 +1153,8 @@ def run_pipeline(
     Returns:
         pandas.DataFrame: Timing, metadata, and QC annotations. The output
         includes the merged timfile metadata plus ``bad``, ``bad_day``, ``z``,
-        ``bad_ou``, ``bad_mad``, ``bad_point``, ``event_member``,
+        ``bad_ou``, ``bad_mad``, ``bad_dm_dvt``, ``bad_dm_dvt_k``,
+        ``bad_dm_dvt_score``, ``bad_dm_dvt_label``, ``bad_point``, ``event_member``,
         ``transient_id``, ``exp_dip_id``, ``exp_dip_member``, ``solar_event_member``,
         ``glitch_id``, ``glitch_member``, ``step_id``, ``dm_step_id``,
         ``step_applicable``, ``step_informative``, ``dm_step_applicable``,

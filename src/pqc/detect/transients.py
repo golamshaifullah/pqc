@@ -1,14 +1,35 @@
 """Detect exponential-recovery transient events in timing residuals.
 
-We model a transient as:
+Transient candidates are modeled as one-sided exponential recoveries:
 
-``y(t) ≈ A * exp(-(t - t0) / tau_rec)`` for ``t >= t0``, evaluated within a
-finite window. Candidate ``t0`` values are scanned at observation times and
-scored using Δχ² relative to a null model.
+.. math::
+   m(t; A,t_0,\\tau) = A\\exp(-(t-t_0)/\\tau)\\,\\mathbf{1}[t\\ge t_0]
 
-See Also:
-    pqc.detect.bad_measurements.detect_bad: Bad measurement detector.
-    pqc.utils.stats: Statistical helpers used across detectors.
+Candidate epochs ``t0`` are scanned at observed TOAs and scored by weighted
+improvement in fit versus a null model using :math:`\\Delta\\chi^2`.
+
+Notes
+-----
+Why this model
+    Recovery-like disturbances in timing data are often well captured by a
+    single exponential relaxation template over finite windows.
+
+Statistic
+    For weighted least squares with weights :math:`w_i=1/\\sigma_i^2`,
+    :math:`\\Delta\\chi^2 = \\chi^2_{\\mathrm{null}} - \\chi^2_{\\mathrm{model}}`.
+
+Interpretation
+    Larger :math:`\\Delta\\chi^2` indicates stronger evidence for a transient
+    shape relative to no-event model within the tested window.
+
+Caveats
+    Dense overlapping events or non-exponential systematics can bias recovered
+    ``A`` and ``t0``.
+
+References
+----------
+.. [1] Edwards, R. T., Hobbs, G. B., & Manchester, R. N. (2006), *MNRAS* 372.
+.. [2] Lorimer, D. R., & Kramer, M. (2005), *Handbook of Pulsar Astronomy*.
 """
 
 from __future__ import annotations
@@ -50,16 +71,41 @@ def scan_transients(
         delta_chi2_thresh (float): Minimum Δχ² to accept a candidate.
         suppress_overlap (bool): If True, suppress overlapping transient
             assignments.
+        member_eta (float): Per-point membership threshold on
+            :math:`|m_i|/\\sigma_i`.
+        instrument (bool): If True, emit diagnostic logging for accepted
+            events.
 
     Returns:
         pandas.DataFrame: Copy with columns ``transient_id``,
         ``transient_amp``, ``transient_t0``, and ``transient_delta_chi2``
         added.
 
+    Raises:
+        KeyError
+            If required columns are missing.
+        ValueError
+            If non-numeric values prevent numerical evaluation.
+
     Notes:
-        The algorithm evaluates candidate start times at observation epochs
-        only. If ``suppress_overlap`` is enabled, higher-Δχ² events take
-        precedence in overlapping windows.
+        **Assumptions**
+            - Measurement errors are represented by ``sigma_col``.
+            - Within a candidate window, one dominant exponential component.
+            - Weighted least squares is an adequate local approximation.
+
+        **Formula for amplitude estimate**
+            For template values :math:`f_i=\\exp(-(t_i-t_0)/\\tau)` in-window:
+
+            .. math::
+               \\hat{A} = \\frac{\\sum_i w_i f_i y_i}{\\sum_i w_i f_i^2}.
+
+        **Caveats**
+            Searching ``t0`` only at observed epochs discretizes event timing.
+            Overlap suppression favors higher-:math:`\\Delta\\chi^2` events.
+
+        **Worked example**
+            If ``tau_rec_days=5`` and ``window_mult=4``, each candidate uses a
+            20-day fitting window after ``t0``.
 
     Examples:
         >>> import pandas as pd

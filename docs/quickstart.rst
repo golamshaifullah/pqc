@@ -71,6 +71,8 @@ The pipeline returns a pandas DataFrame with timing metadata, QC flags, and
 optional event annotations. Key columns include:
 
 - ``bad_point``: aggregate bad measurement flag
+- ``bad_dm_dvt`` and ``bad_dm_dvt_label``: dynamic hard flags using
+  ``|resid|/sigma > 4*k`` with ``k=max(1, mean(|resid|/sigma))``
 - ``event_member``: aggregate event membership across enabled detectors
 - ``step_applicable`` and ``step_informative``
 - ``dm_step_applicable`` and ``dm_step_informative``
