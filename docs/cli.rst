@@ -15,7 +15,8 @@ Basic run
    pqc --par /path/to/pulsar.par --out out.csv
 
 This writes a settings file alongside the CSV unless you override it with
-``--settings-out``.
+``--settings-out``. If preprocessing detrending is enabled, it also writes a
+preprocessing model JSON unless you override it with ``--preproc-models-out``.
 
 Custom thresholds
 -----------------
@@ -97,6 +98,15 @@ Settings output
 
    pqc --par /path/to/pulsar.par --out out.csv \
      --settings-out results/run_settings.toml
+
+Preprocessing-model output
+--------------------------
+
+.. code-block:: bash
+
+   pqc --par /path/to/pulsar.par --out out.csv \
+     --detrend-features orbital_phase \
+     --preproc-models-out results/preproc_models.json
 
 References
 ----------
