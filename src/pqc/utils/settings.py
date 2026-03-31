@@ -1,9 +1,10 @@
-"""Write PQC run settings to a TOML file."""
+"""Write PQC run settings and run artifacts."""
 
 from __future__ import annotations
 
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
+import json
 from pathlib import Path
 from typing import Any
 
@@ -112,3 +113,56 @@ def write_run_settings_toml(
     with open(out_path, "w", encoding="utf-8") as fp:
         for section, mapping in settings.items():
             _write_section(fp, section, _clean_mapping(mapping))
+
+
+def _jsonable(val: Any) -> Any:
+    if isinstance(val, dict):
+        return {str(k): _jsonable(v) for k, v in val.items()}
+    if isinstance(val, (list, tuple)):
+        return [_jsonable(v) for v in val]
+    if hasattr(val, "tolist"):
+        return _jsonable(val.tolist())
+    if isinstance(val, Path):
+        return str(val)
+    if isinstance(val, datetime):
+        return val.isoformat()
+    return val
+
+
+def write_preproc_models_json(
+    path: str | Path,
+    *,
+    parfile: str | Path,
+    backend_col: str,
+    group_cols: tuple[str, ...],
+    features: tuple[str, ...],
+    models: dict[Any, Any],
+) -> None:
+    """Write preprocessed detrend models to JSON (overwrites existing file)."""
+    out_path = Path(path)
+    payload = {
+        "run": {
+            "parfile": str(parfile),
+            "backend_col": str(backend_col),
+            "group_cols": list(group_cols),
+            "features": list(features),
+            "timestamp_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        },
+        "models": [],
+    }
+    for key, model in models.items():
+        group_key, feature = key
+        if isinstance(group_key, tuple):
+            group_vals = [None if str(v) == "nan" else v for v in group_key]
+        else:
+            group_vals = [group_key]
+        payload["models"].append(
+            {
+                "group_key": _jsonable(group_vals),
+                "feature": str(feature),
+                "model": _jsonable(model),
+            }
+        )
+
+    with open(out_path, "w", encoding="utf-8") as fp:
+        json.dump(payload, fp, indent=2, sort_keys=False)

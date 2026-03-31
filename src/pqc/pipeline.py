@@ -64,7 +64,7 @@ from pqc.io.timfile import parse_all_timfiles
 from pqc.preproc.mean_model import detrend_by_features
 from pqc.preproc.variance_model import rescale_by_feature
 from pqc.utils.logging import info, warn
-from pqc.utils.settings import write_run_settings_toml
+from pqc.utils.settings import write_preproc_models_json, write_run_settings_toml
 
 _DETECTOR_NAMES = {"ou", "transient", "mad", "step", "dmstep"}
 
@@ -400,8 +400,9 @@ def _run_detection_stage(
     preproc_feats = tuple(preproc_cfg.detrend_features)
     circular_map = {f: (f in preproc_cfg.circular_features) for f in preproc_feats}
     group_cols = tuple(c for c in preproc_cfg.condition_on if c in df_work.columns)
+    preproc_models: dict = {}
     if preproc_feats:
-        df_work, _ = detrend_by_features(
+        df_work, preproc_models = detrend_by_features(
             df_work,
             preproc_feats,
             group_cols=group_cols or (backend_col,),
@@ -1088,6 +1089,9 @@ def _run_detection_stage(
     df_out["outlier_any"] |= df_out["bad_point"]
     df_out["outlier_any"] |= df_out["event_member"]
 
+    df_out.attrs["preproc_models"] = preproc_models
+    df_out.attrs["preproc_group_cols"] = tuple(group_cols or (backend_col,))
+    df_out.attrs["preproc_features"] = tuple(preproc_feats)
     return df_out
 
 
@@ -1113,6 +1117,7 @@ def run_pipeline(
     glitch_cfg: GlitchConfig | None = None,
     drop_unmatched: bool = False,
     settings_out: str | Path | None = None,
+    preproc_models_out: str | Path | None = None,
 ) -> pd.DataFrame:
     """Run the full PTA QC pipeline for a single pulsar.
 
@@ -1149,6 +1154,10 @@ def run_pipeline(
         settings_out (str | Path | None): Optional TOML path to write the
             pipeline settings used for this run. If None, a sibling
             ``<parfile>/.pqc_settings.toml`` is created.
+        preproc_models_out (str | Path | None): Optional JSON path to write
+            preprocessed detrend models when preprocessing detrending is used.
+            If None, a sibling ``.pqc_preproc_models.json`` next to
+            ``settings_out`` is used.
 
     Returns:
         pandas.DataFrame: Timing, metadata, and QC annotations. The output
@@ -1199,6 +1208,10 @@ def run_pipeline(
 
     if settings_out is None:
         settings_out = parfile.with_suffix(".pqc_settings.toml")
+    settings_out = Path(settings_out)
+    if preproc_models_out is None:
+        preproc_models_out = settings_out.with_suffix(".pqc_preproc_models.json")
+    preproc_models_out = Path(preproc_models_out)
     if bad_cfg is None:
         bad_cfg = BadMeasConfig()
     if tr_cfg is None:
@@ -1307,7 +1320,7 @@ def run_pipeline(
     )
 
     info("[6/6] Detect bad measurements + transients per backend")
-    return _run_detection_stage(
+    df_out = _run_detection_stage(
         df,
         backend_col=backend_col,
         bad_cfg=bad_cfg,
@@ -1325,3 +1338,14 @@ def run_pipeline(
         bump_cfg=bump_cfg,
         glitch_cfg=glitch_cfg,
     )
+    preproc_models = df_out.attrs.get("preproc_models", {})
+    if isinstance(preproc_models, dict) and preproc_models:
+        write_preproc_models_json(
+            preproc_models_out,
+            parfile=parfile,
+            backend_col=backend_col,
+            group_cols=tuple(df_out.attrs.get("preproc_group_cols", (backend_col,))),
+            features=tuple(df_out.attrs.get("preproc_features", ())),
+            models=preproc_models,
+        )
+    return df_out

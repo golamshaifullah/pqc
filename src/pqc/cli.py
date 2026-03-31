@@ -74,6 +74,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional TOML path to write run settings (default: alongside --out, with .pqc_settings.toml suffix).",
     )
     p.add_argument(
+        "--preproc-models-out",
+        default=None,
+        help="Optional JSON path to write preprocessing detrend models (default: alongside --out, with .pqc_preproc_models.json suffix).",
+    )
+    p.add_argument(
         "--log-level", default="INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR)."
     )
     p.add_argument("--log-format", default="%(message)s", help="Logging format string.")
@@ -350,6 +355,10 @@ def main() -> None:
     if settings_out is None:
         out_path = Path(args.out)
         settings_out = out_path.with_suffix(".pqc_settings.toml")
+    preproc_models_out = args.preproc_models_out
+    if preproc_models_out is None:
+        out_path = Path(args.out)
+        preproc_models_out = out_path.with_suffix(".pqc_preproc_models.json")
 
     merge_cfg = MergeConfig(tol_days=args.tol_seconds / 86400.0)
     bad_cfg = BadMeasConfig(
@@ -442,6 +451,7 @@ def main() -> None:
         gate_cfg=gate_cfg,
         drop_unmatched=args.drop_unmatched,
         settings_out=settings_out,
+        preproc_models_out=preproc_models_out,
     )
 
     df.to_csv(args.out, index=False)

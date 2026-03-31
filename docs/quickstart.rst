@@ -35,6 +35,7 @@ This writes:
 
 - the QC CSV output to ``results/J1909-3744_qc.csv``
 - the run settings TOML to ``results/J1909-3744_qc.pqc_settings.toml``
+- preprocessing detrend models JSON to ``results/J1909-3744_qc.pqc_preproc_models.json`` (when preprocessing detrending is enabled)
 
 Python (notebook-friendly)
 --------------------------
@@ -89,6 +90,8 @@ defined as ``bad_point OR event_member``.
 If you run via the CLI, a TOML settings file is also written alongside the
 CSV (same filename stem with ``.pqc_settings.toml``). This captures the exact
 configuration used for the run.
+If preprocessing detrending is enabled, a JSON model artifact is also written
+alongside the CSV (same filename stem with ``.pqc_preproc_models.json``).
 
 Minimal statistical context
 ---------------------------
