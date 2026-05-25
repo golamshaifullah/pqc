@@ -90,14 +90,14 @@ def add_solar_elongation(
 
     Args:
         df (pandas.DataFrame): Input table containing timing rows.
-        parfile (str | Path): Pulsar ``.par`` file with RA/DEC.
+        parfile (str | Path): Pulsar ``.par`` file with RA/DEC or ELONG/ELAT.
         mjd_col (str): Name of the MJD column in ``df``.
 
     Returns:
         pandas.DataFrame: Copy of ``df`` with ``solar_elongation_deg``.
 
     Notes:
-        Requires astropy. If astropy is unavailable or RA/DEC are missing,
+        Requires astropy. If astropy is unavailable or sky position is missing,
         ``solar_elongation_deg`` is filled with NaNs and a warning is issued.
 
     Examples:
@@ -107,20 +107,31 @@ def add_solar_elongation(
     d = df.copy()
     try:
         import astropy.units as u
-        from astropy.coordinates import SkyCoord, get_sun
+        from astropy.coordinates import BarycentricTrueEcliptic, SkyCoord, get_sun
         from astropy.time import Time
     except Exception:
         warn("Astropy is not available; solar elongation will be NaN.")
         d["solar_elongation_deg"] = np.nan
         return d
 
-    raj, decj = _read_par_radec(parfile)
-    if raj is None or decj is None:
-        warn("RAJ/DECJ missing in parfile; solar elongation will be NaN.")
+    coord_kind, lon, lat = _read_par_sky_position(parfile)
+    if coord_kind is None or lon is None or lat is None:
+        warn("RA/DEC and ELONG/ELAT missing in parfile; solar elongation will be NaN.")
         d["solar_elongation_deg"] = np.nan
         return d
 
-    psr = SkyCoord(raj, decj, unit=(u.hourangle, u.deg), frame="icrs")
+    if coord_kind == "icrs":
+        psr = SkyCoord(lon, lat, unit=(u.hourangle, u.deg), frame="icrs")
+    else:
+        elong = _parse_par_float(lon)
+        elat = _parse_par_float(lat)
+        if elong is None or elat is None:
+            warn("ELONG/ELAT invalid in parfile; solar elongation will be NaN.")
+            d["solar_elongation_deg"] = np.nan
+            return d
+        ecliptic_frame = BarycentricTrueEcliptic(equinox=Time("J2000"))
+        psr = SkyCoord(elong, elat, unit=(u.deg, u.deg), frame=ecliptic_frame).icrs
+
     t = Time(d[mjd_col].to_numpy(dtype=float), format="mjd", scale="tdb")
     sun = get_sun(t).icrs
     sep = psr.separation(sun).to(u.deg).value
@@ -315,6 +326,53 @@ def _read_par_radec(parfile: str | Path) -> tuple[str | None, str | None]:
             if len(parts) > 1:
                 decj = parts[1]
     return raj, decj
+
+
+def _read_par_sky_position(parfile: str | Path) -> tuple[str | None, str | None, str | None]:
+    """Read the preferred pulsar sky position from a parfile.
+
+    RAJ/DECJ, or RA/DEC, are returned as ICRS hourangle/degree strings. If no
+    complete RA/DEC pair is present, ELONG/ELAT are returned as ecliptic
+    longitude/latitude degree strings.
+
+    Args:
+        parfile (str | Path): Path to a pulsar ``.par`` file.
+
+    Returns:
+        tuple[str | None, str | None, str | None]: ``(kind, lon, lat)`` where
+        ``kind`` is ``"icrs"`` or ``"ecliptic"``, or all ``None`` if missing.
+    """
+    values: dict[str, str] = {}
+    for raw in Path(parfile).read_text(encoding="utf-8").splitlines():
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        parts = stripped.split()
+        if len(parts) < 2:
+            continue
+        key = parts[0].upper()
+        if key in {"RAJ", "DECJ", "RA", "DEC", "ELONG", "ELAT"}:
+            values[key] = parts[1]
+
+    raj = values.get("RAJ") or values.get("RA")
+    decj = values.get("DECJ") or values.get("DEC")
+    if raj is not None and decj is not None:
+        return "icrs", raj, decj
+
+    elong = values.get("ELONG")
+    elat = values.get("ELAT")
+    if elong is not None and elat is not None:
+        return "ecliptic", elong, elat
+
+    return None, None, None
+
+
+def _parse_par_float(value: str) -> float | None:
+    """Parse a parfile float token, accepting Fortran-style exponents."""
+    try:
+        return float(value.replace("D", "E").replace("d", "e"))
+    except Exception:
+        return None
 
 
 def add_feature_columns(
