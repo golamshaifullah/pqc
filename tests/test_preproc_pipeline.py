@@ -13,6 +13,8 @@ from pqc.config import (
 from pqc.detect.bad_measurements import detect_bad
 from pqc.detect.transients import scan_transients
 from pqc.pipeline import _run_detection_stage
+from pqc.preproc.mean_model import detrend_by_features
+from pqc.preproc.variance_model import rescale_by_feature
 
 
 def _make_synth_df(seed: int = 123) -> tuple[pd.DataFrame, int]:
@@ -310,3 +312,50 @@ def test_transient_detected_with_preproc():
     )
 
     assert (out["transient_id"] >= 0).any()
+
+
+def test_detrend_by_features_leaves_nan_feature_rows_unchanged():
+    df = pd.DataFrame(
+        {
+            "group": ["G1", "G1", "G1"],
+            "feature": [0.1, 0.9, np.nan],
+            "resid": [10.0, 30.0, 99.0],
+            "sigma": [1.0, 1.0, 1.0],
+        }
+    )
+
+    out, _models = detrend_by_features(
+        df,
+        ("feature",),
+        group_cols=("group",),
+        resid_col="resid",
+        sigma_col="sigma",
+        nbins_map={"feature": 2},
+        min_per_bin=1,
+    )
+
+    assert out.loc[2, "resid_detr"] == df.loc[2, "resid"]
+
+
+def test_rescale_by_feature_leaves_nan_feature_rows_unchanged():
+    df = pd.DataFrame(
+        {
+            "group": ["G1", "G1", "G1", "G1", "G1"],
+            "feature": [0.1, 0.1, 0.9, 0.9, np.nan],
+            "resid": [1.0, 3.0, 10.0, 14.0, 30.0],
+            "sigma": [1.0, 1.0, 2.0, 2.0, 3.0],
+        }
+    )
+
+    out = rescale_by_feature(
+        df,
+        "feature",
+        group_cols=("group",),
+        resid_col="resid",
+        sigma_col="sigma",
+        nbins=2,
+        min_per_bin=2,
+    )
+
+    assert out.loc[4, "resid_proc"] == df.loc[4, "resid"]
+    assert out.loc[4, "sigma_proc"] == df.loc[4, "sigma"]

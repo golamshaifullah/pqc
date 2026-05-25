@@ -103,15 +103,24 @@ def predict_binned_mean(model: dict, x: np.ndarray) -> np.ndarray:
         return np.full_like(x, np.nan, dtype=float)
 
     if model.get("circular", False):
-        x = np.mod(x, 1.0)
+        x = x.copy()
 
     nbins = int(edges.size - 1)
-    bin_id = np.digitize(x, edges) - 1
+    yhat = np.full_like(x, np.nan, dtype=float)
+    good = np.isfinite(x)
+    if not np.any(good):
+        return yhat
+
+    xg = x[good]
+    if model.get("circular", False):
+        xg = np.mod(xg, 1.0)
+
+    bin_id = np.digitize(xg, edges) - 1
     bin_id = np.clip(bin_id, 0, nbins - 1)
 
-    yhat = np.full_like(x, np.nan, dtype=float)
     ok = has_mean[bin_id]
-    yhat[ok] = means[bin_id[ok]]
+    good_idx = np.flatnonzero(good)
+    yhat[good_idx[ok]] = means[bin_id[ok]]
     return yhat
 
 

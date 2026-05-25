@@ -390,7 +390,7 @@ def _load_observatory_map(
     if observatory_path is not None:
         path = Path(observatory_path)
     else:
-        path = Path(__file__).resolve().parent / "data" / "observatories.dat"
+        path = Path(__file__).resolve().parents[1] / "data" / "observatories.dat"
         if not path.exists():
             return {}
     if not path.exists():

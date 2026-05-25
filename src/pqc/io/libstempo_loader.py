@@ -22,6 +22,14 @@ except Exception:  # pragma: no cover - environment-dependent import
     lt = None
 
 
+def _discover_all_tim(parfile: str | Path) -> Path:
+    """Return the sibling ``*_all.tim`` path for a parfile path."""
+    parfile = Path(parfile)
+    if parfile.suffix.lower() == ".par":
+        return parfile.with_name(f"{parfile.stem}_all.tim")
+    return parfile.with_name(f"{parfile.name}_all.tim")
+
+
 def load_libstempo(parfile: str | Path) -> pd.DataFrame:
     """Load timing arrays from a ``.par``/``*_all.tim`` pair using libstempo.
 
@@ -51,9 +59,9 @@ def load_libstempo(parfile: str | Path) -> pd.DataFrame:
     if not parfile.exists():
         raise FileNotFoundError(str(parfile))
 
-    all_tim = str(parfile).replace(".par", "_all.tim")
-    if not Path(all_tim).exists():
-        raise FileNotFoundError(all_tim)
+    all_tim = _discover_all_tim(parfile)
+    if not all_tim.exists():
+        raise FileNotFoundError(str(all_tim))
     if lt is None:
         raise ModuleNotFoundError(
             "libstempo is required to run the pipeline. Install with: pip install 'pqc[libstempo]'"
