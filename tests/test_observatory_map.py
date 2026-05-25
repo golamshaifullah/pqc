@@ -8,3 +8,9 @@ def test_load_observatory_map(tmp_path):
     assert m["site1"] == (1.0, 2.0, 3.0)
     assert m["s1"] == (1.0, 2.0, 3.0)
     assert m["site2"] == (4.0, 5.0, 6.0)
+
+
+def test_load_observatory_map_default_bundle():
+    m = _load_observatory_map(None)
+    assert "gbt" in m
+    assert len(m["gbt"]) == 3

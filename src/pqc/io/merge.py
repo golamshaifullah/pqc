@@ -123,6 +123,7 @@ def merge_time_and_meta(
             dt3 = dt3.loc[dt3["mjd"].notna()].copy()
             dm3 = dm3.loc[dm3["mjd"].notna()].copy()
             if not dt3.empty and not dm3.empty:
+                dt3["_orig_idx"] = dt3.index.to_numpy()
                 dt3 = dt3.sort_values("mjd").reset_index(drop=True)
                 dm3 = dm3.sort_values("mjd").reset_index(drop=True)
                 merged3 = pd.merge_asof(
@@ -133,6 +134,7 @@ def merge_time_and_meta(
                     tolerance=float(tol_days),
                     suffixes=("", "_meta"),
                 )
+                merged3 = merged3.set_index("_orig_idx")
                 # Fill only rows still missing metadata.
                 for col in dm.columns:
                     meta_col = f"{col}_meta" if col in dt.columns else col

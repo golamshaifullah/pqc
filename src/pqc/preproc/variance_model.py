@@ -95,14 +95,17 @@ def rescale_by_feature(
                 scales[b] = sigma_hat
                 has_scale[b] = True
 
-        x_all = x.copy()
-        if circular:
-            x_all = np.mod(x_all, 1.0)
-        bin_all = np.digitize(x_all, edges) - 1
-        bin_all = np.clip(bin_all, 0, nbins_eff - 1)
         scale_all = np.ones_like(y, dtype=float)
-        apply = has_scale[bin_all]
-        scale_all[apply] = scales[bin_all[apply]]
+        valid_x = np.isfinite(x)
+        if np.any(valid_x):
+            x_all = x[valid_x]
+            if circular:
+                x_all = np.mod(x_all, 1.0)
+            bin_all = np.digitize(x_all, edges) - 1
+            bin_all = np.clip(bin_all, 0, nbins_eff - 1)
+            apply = has_scale[bin_all]
+            valid_idx = np.flatnonzero(valid_x)
+            scale_all[valid_idx[apply]] = scales[bin_all[apply]]
 
         y_scaled = y / scale_all
         s_scaled = s / scale_all

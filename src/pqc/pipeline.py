@@ -58,7 +58,7 @@ from pqc.detect.step_changes import detect_dm_step, detect_step
 from pqc.detect.transients import scan_transients
 from pqc.features.backend_keys import ensure_sys_group
 from pqc.features.feature_extraction import add_feature_columns
-from pqc.io.libstempo_loader import load_libstempo
+from pqc.io.libstempo_loader import _discover_all_tim, load_libstempo
 from pqc.io.merge import merge_time_and_meta
 from pqc.io.timfile import parse_all_timfiles
 from pqc.preproc.mean_model import detrend_by_features
@@ -1202,9 +1202,9 @@ def run_pipeline(
     if not parfile.exists():
         raise FileNotFoundError(str(parfile))
 
-    all_tim = str(parfile).replace(".par", "_all.tim")
-    if not Path(all_tim).exists():
-        raise FileNotFoundError(all_tim)
+    all_tim = _discover_all_tim(parfile)
+    if not all_tim.exists():
+        raise FileNotFoundError(str(all_tim))
 
     if settings_out is None:
         settings_out = parfile.with_suffix(".pqc_settings.toml")
