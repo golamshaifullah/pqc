@@ -91,8 +91,7 @@ def test_solar_elongation_galactic_matches_converted_radec(tmp_path):
     psr = SkyCoord("12:34:56", "-12:34:56", unit=(u.hourangle, u.deg), frame="icrs")
     galactic = psr.galactic
     galactic_par.write_text(
-        f"GLONG {galactic.l.to_value(u.deg):.12f}\n"
-        f"GLAT {galactic.b.to_value(u.deg):.12f}\n",
+        f"GLONG {galactic.l.to_value(u.deg):.12f}\n" f"GLAT {galactic.b.to_value(u.deg):.12f}\n",
         encoding="utf-8",
     )
 
