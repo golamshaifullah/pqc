@@ -78,6 +78,33 @@ def test_solar_elongation_ecliptic_matches_converted_radec(tmp_path):
     )
 
 
+def test_solar_elongation_galactic_matches_converted_radec(tmp_path):
+    pytest.importorskip("astropy")
+    import astropy.units as u
+    from astropy.coordinates import SkyCoord
+
+    df = pd.DataFrame({"mjd": [58000.0, 58010.0, 58100.0]})
+    radec_par = tmp_path / "radec.par"
+    galactic_par = tmp_path / "galactic.par"
+    radec_par.write_text("RAJ 12:34:56\nDECJ -12:34:56\n", encoding="utf-8")
+
+    psr = SkyCoord("12:34:56", "-12:34:56", unit=(u.hourangle, u.deg), frame="icrs")
+    galactic = psr.galactic
+    galactic_par.write_text(
+        f"GLONG {galactic.l.to_value(u.deg):.12f}\n"
+        f"GLAT {galactic.b.to_value(u.deg):.12f}\n",
+        encoding="utf-8",
+    )
+
+    radec_out = add_solar_elongation(df, radec_par)
+    galactic_out = add_solar_elongation(df, galactic_par)
+    assert np.allclose(
+        radec_out["solar_elongation_deg"].to_numpy(),
+        galactic_out["solar_elongation_deg"].to_numpy(),
+        atol=1e-9,
+    )
+
+
 def test_altaz_no_astropy(tmp_path, monkeypatch):
     par = tmp_path / "psr.par"
     par.write_text("RAJ 00:00:00\nDECJ 00:00:00\n", encoding="utf-8")

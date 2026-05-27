@@ -12,12 +12,64 @@ See Also:
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from pqc.utils.logging import warn
+
+
+@dataclass(frozen=True)
+class _ParCoordinateSpec:
+    """Description of one sky-position coordinate pair in a parfile."""
+
+    kind: str
+    frame: str
+    lon_keys: tuple[str, ...]
+    lat_keys: tuple[str, ...]
+    lon_unit: str
+    lat_unit: str
+
+
+@dataclass(frozen=True)
+class _ParSkyPosition:
+    """Sky-position values read from a parfile."""
+
+    spec: _ParCoordinateSpec
+    lon_key: str
+    lat_key: str
+    lon: str
+    lat: str
+
+
+_PAR_COORDINATE_SPECS = (
+    _ParCoordinateSpec(
+        kind="equatorial",
+        frame="icrs",
+        lon_keys=("RAJ", "RA"),
+        lat_keys=("DECJ", "DEC"),
+        lon_unit="hourangle",
+        lat_unit="deg",
+    ),
+    _ParCoordinateSpec(
+        kind="ecliptic",
+        frame="barycentrictrueecliptic",
+        lon_keys=("ELONG", "LAMBDA"),
+        lat_keys=("ELAT", "BETA"),
+        lon_unit="deg",
+        lat_unit="deg",
+    ),
+    _ParCoordinateSpec(
+        kind="galactic",
+        frame="galactic",
+        lon_keys=("GLONG", "GL"),
+        lat_keys=("GLAT", "GB"),
+        lon_unit="deg",
+        lat_unit="deg",
+    ),
+)
 
 
 def _read_par_value(parfile: str | Path, key: str) -> float | None:
@@ -90,7 +142,7 @@ def add_solar_elongation(
 
     Args:
         df (pandas.DataFrame): Input table containing timing rows.
-        parfile (str | Path): Pulsar ``.par`` file with RA/DEC or ELONG/ELAT.
+        parfile (str | Path): Pulsar ``.par`` file with a supported sky position.
         mjd_col (str): Name of the MJD column in ``df``.
 
     Returns:
@@ -114,27 +166,24 @@ def add_solar_elongation(
         d["solar_elongation_deg"] = np.nan
         return d
 
-    coord_kind, lon, lat = _read_par_sky_position(parfile)
-    if coord_kind is None or lon is None or lat is None:
-        warn("RA/DEC and ELONG/ELAT missing in parfile; solar elongation will be NaN.")
+    position = _read_par_sky_position(parfile)
+    if position is None:
+        warn("No supported sky-position coordinate pair in parfile; solar elongation will be NaN.")
         d["solar_elongation_deg"] = np.nan
         return d
 
-    if coord_kind == "icrs":
-        psr = SkyCoord(lon, lat, unit=(u.hourangle, u.deg), frame="icrs")
-    else:
-        elong = _parse_par_float(lon)
-        elat = _parse_par_float(lat)
-        if elong is None or elat is None:
-            warn("ELONG/ELAT invalid in parfile; solar elongation will be NaN.")
-            d["solar_elongation_deg"] = np.nan
-            return d
-        ecliptic_frame = BarycentricTrueEcliptic(equinox=Time("J2000"))
-        psr = SkyCoord(elong, elat, unit=(u.deg, u.deg), frame=ecliptic_frame).icrs
+    psr = _skycoord_from_par_position(position, SkyCoord, BarycentricTrueEcliptic, Time, u)
+    if psr is None:
+        warn(
+            f"{position.lon_key}/{position.lat_key} invalid in parfile; "
+            "solar elongation will be NaN."
+        )
+        d["solar_elongation_deg"] = np.nan
+        return d
 
     t = Time(d[mjd_col].to_numpy(dtype=float), format="mjd", scale="tdb")
     sun = get_sun(t).icrs
-    sep = psr.separation(sun).to(u.deg).value
+    sep = psr.icrs.separation(sun).to(u.deg).value
     d["solar_elongation_deg"] = sep
     return d
 
@@ -154,7 +203,7 @@ def add_altaz_features(
 
     Args:
         df (pandas.DataFrame): Input table containing timing rows.
-        parfile (str | Path): Pulsar ``.par`` file with RA/DEC.
+        parfile (str | Path): Pulsar ``.par`` file with a supported sky position.
         mjd_col (str): Name of the MJD column in ``df``.
         tel_col (str): Name of the telescope/site column in ``df``.
         observatory_path (str | Path | None): Optional path to an observatory
@@ -189,7 +238,7 @@ def add_altaz_features(
 
     try:
         import astropy.units as u
-        from astropy.coordinates import AltAz, EarthLocation, SkyCoord
+        from astropy.coordinates import AltAz, BarycentricTrueEcliptic, EarthLocation, SkyCoord
         from astropy.time import Time
     except Exception:
         warn("Astropy is not available; elevation/airmass/parallactic angle will be NaN.")
@@ -199,14 +248,25 @@ def add_altaz_features(
         warn(f"{tel_col} column missing; elevation/airmass/parallactic angle will be NaN.")
         return d
 
-    raj, decj = _read_par_radec(parfile)
-    if raj is None or decj is None:
-        warn("RAJ/DECJ missing in parfile; elevation/airmass/parallactic angle will be NaN.")
+    position = _read_par_sky_position(parfile)
+    if position is None:
+        warn(
+            "No supported sky-position coordinate pair in parfile; "
+            "elevation/airmass/parallactic angle will be NaN."
+        )
         return d
 
-    psr = SkyCoord(raj, decj, unit=(u.hourangle, u.deg), frame="icrs")
-    ra = psr.ra
-    dec = psr.dec
+    psr = _skycoord_from_par_position(position, SkyCoord, BarycentricTrueEcliptic, Time, u)
+    if psr is None:
+        warn(
+            f"{position.lon_key}/{position.lat_key} invalid in parfile; "
+            "elevation/airmass/parallactic angle will be NaN."
+        )
+        return d
+
+    psr_icrs = psr.icrs
+    ra = psr_icrs.ra
+    dec = psr_icrs.dec
 
     obs_map = _load_observatory_map(observatory_path)
     for tel in d[tel_col].dropna().unique():
@@ -228,7 +288,7 @@ def add_altaz_features(
                 continue
 
         t = Time(d.loc[mask, mjd_col].to_numpy(dtype=float), format="mjd", scale="utc")
-        altaz = psr.transform_to(AltAz(obstime=t, location=loc))
+        altaz = psr_icrs.transform_to(AltAz(obstime=t, location=loc))
 
         if add_elevation:
             d.loc[mask, "elevation_deg"] = altaz.alt.to(u.deg).value
@@ -312,36 +372,37 @@ def _read_par_radec(parfile: str | Path) -> tuple[str | None, str | None]:
     Returns:
         tuple[str | None, str | None]: ``(RAJ, DECJ)`` or ``(None, None)``.
     """
-    text = Path(parfile).read_text(encoding="utf-8").splitlines()
-    raj = None
-    decj = None
-    for line in text:
-        stripped = line.strip()
-        if stripped.startswith("RAJ") or stripped.startswith("RA"):
-            parts = stripped.split()
-            if len(parts) > 1:
-                raj = parts[1]
-        if stripped.startswith("DECJ") or stripped.startswith("DEC"):
-            parts = stripped.split()
-            if len(parts) > 1:
-                decj = parts[1]
+    values = _read_par_tokens(parfile)
+    raj = values.get("RAJ") or values.get("RA")
+    decj = values.get("DECJ") or values.get("DEC")
     return raj, decj
 
 
-def _read_par_sky_position(parfile: str | Path) -> tuple[str | None, str | None, str | None]:
+def _read_par_sky_position(parfile: str | Path) -> _ParSkyPosition | None:
     """Read the preferred pulsar sky position from a parfile.
 
-    RAJ/DECJ, or RA/DEC, are returned as ICRS hourangle/degree strings. If no
-    complete RA/DEC pair is present, ELONG/ELAT are returned as ecliptic
-    longitude/latitude degree strings.
+    Exact parfile keys are matched to avoid confusing position parameters with
+    similarly named timing terms. Equatorial positions are preferred, then
+    ecliptic positions, then galactic positions.
 
     Args:
         parfile (str | Path): Path to a pulsar ``.par`` file.
 
     Returns:
-        tuple[str | None, str | None, str | None]: ``(kind, lon, lat)`` where
-        ``kind`` is ``"icrs"`` or ``"ecliptic"``, or all ``None`` if missing.
+        _ParSkyPosition | None: The first complete supported coordinate pair,
+        or ``None`` if no supported pair is present.
     """
+    values = _read_par_tokens(parfile)
+    for spec in _PAR_COORDINATE_SPECS:
+        lon_key, lon = _first_present(values, spec.lon_keys)
+        lat_key, lat = _first_present(values, spec.lat_keys)
+        if lon_key is not None and lat_key is not None and lon is not None and lat is not None:
+            return _ParSkyPosition(spec, lon_key, lat_key, lon, lat)
+    return None
+
+
+def _read_par_tokens(parfile: str | Path) -> dict[str, str]:
+    """Read first value tokens from a parfile keyed by upper-case parameter name."""
     values: dict[str, str] = {}
     for raw in Path(parfile).read_text(encoding="utf-8").splitlines():
         stripped = raw.strip()
@@ -351,20 +412,50 @@ def _read_par_sky_position(parfile: str | Path) -> tuple[str | None, str | None,
         if len(parts) < 2:
             continue
         key = parts[0].upper()
-        if key in {"RAJ", "DECJ", "RA", "DEC", "ELONG", "ELAT"}:
-            values[key] = parts[1]
+        values[key] = parts[1]
+    return values
 
-    raj = values.get("RAJ") or values.get("RA")
-    decj = values.get("DECJ") or values.get("DEC")
-    if raj is not None and decj is not None:
-        return "icrs", raj, decj
 
-    elong = values.get("ELONG")
-    elat = values.get("ELAT")
-    if elong is not None and elat is not None:
-        return "ecliptic", elong, elat
+def _first_present(values: dict[str, str], keys: tuple[str, ...]) -> tuple[str | None, str | None]:
+    """Return the first present key/value from ``values``."""
+    for key in keys:
+        if key in values:
+            return key, values[key]
+    return None, None
 
-    return None, None, None
+
+def _skycoord_from_par_position(
+    position: _ParSkyPosition,
+    skycoord_cls,
+    ecliptic_frame_cls,
+    time_cls,
+    units,
+):
+    """Build an Astropy SkyCoord from a parsed parfile sky position."""
+    frame = _astropy_frame(position.spec, ecliptic_frame_cls, time_cls)
+    lon_unit = getattr(units, position.spec.lon_unit)
+    lat_unit = getattr(units, position.spec.lat_unit)
+    lon = _parse_angle_token(position.lon)
+    lat = _parse_angle_token(position.lat)
+    try:
+        return skycoord_cls(lon, lat, unit=(lon_unit, lat_unit), frame=frame)
+    except Exception:
+        return None
+
+
+def _astropy_frame(spec: _ParCoordinateSpec, ecliptic_frame_cls, time_cls):
+    """Return the Astropy frame object/name for a supported parfile coordinate spec."""
+    if spec.frame == "barycentrictrueecliptic":
+        return ecliptic_frame_cls(equinox=time_cls("J2000"))
+    return spec.frame
+
+
+def _parse_angle_token(value: str) -> float | str:
+    """Parse numeric angle tokens while preserving sexagesimal strings."""
+    parsed = _parse_par_float(value)
+    if parsed is not None:
+        return parsed
+    return value
 
 
 def _parse_par_float(value: str) -> float | None:
