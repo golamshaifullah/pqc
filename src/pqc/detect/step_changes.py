@@ -39,12 +39,18 @@ import pandas as pd
 
 
 def _best_step(
-    mjd: np.ndarray, y: np.ndarray, s: np.ndarray, min_points: int, delta_chi2_thresh: float
+    mjd: np.ndarray,
+    y: np.ndarray,
+    s: np.ndarray,
+    min_points: int,
+    delta_chi2_thresh: float,
+    min_span_days: float | None = None,
 ):
     n = len(y)
     if n < 2 * min_points:
         return None
 
+    min_span = None if min_span_days is None else float(min_span_days)
     w = 1.0 / (s**2)
     # cumulative sums for fast split stats
     w_c = np.cumsum(w)
@@ -52,6 +58,11 @@ def _best_step(
 
     best = None
     for i in range(min_points, n - min_points + 1):
+        if min_span is not None:
+            pre_span = mjd[i - 1] - mjd[0]
+            post_span = mjd[-1] - mjd[i]
+            if pre_span < min_span or post_span < min_span:
+                continue
         w1 = w_c[i - 1]
         wy1 = wy_c[i - 1]
         w2 = w_c[-1] - w1
@@ -80,6 +91,7 @@ def detect_step(
     resid_col: str = "resid",
     sigma_col: str = "sigma",
     min_points: int = 20,
+    min_span_days: float | None = None,
     delta_chi2_thresh: float = 25.0,
     member_eta: float = 1.0,
     member_tmax_days: float | None = 3650.0,
@@ -99,6 +111,8 @@ def detect_step(
         Column names for time, residual, and uncertainty.
     min_points : int, optional
         Minimum points required on each side of candidate split.
+    min_span_days : float or None, optional
+        Minimum time span in days required on each side of candidate split.
     delta_chi2_thresh : float, optional
         Minimum :math:`\\Delta\\chi^2` to accept a step candidate.
     member_eta : float, optional
@@ -146,7 +160,14 @@ def detect_step(
     y = d[resid_col].to_numpy(dtype=float)
     s = d[sigma_col].to_numpy(dtype=float)
 
-    best = _best_step(mjd, y, s, int(min_points), float(delta_chi2_thresh))
+    best = _best_step(
+        mjd,
+        y,
+        s,
+        int(min_points),
+        float(delta_chi2_thresh),
+        min_span_days=min_span_days,
+    )
     if best is None:
         return out
 
@@ -223,6 +244,7 @@ def detect_dm_step(
     sigma_col: str = "sigma",
     freq_col: str = "freq",
     min_points: int = 20,
+    min_span_days: float | None = None,
     delta_chi2_thresh: float = 25.0,
     member_eta: float = 1.0,
     member_tmax_days: float | None = 3650.0,
@@ -241,6 +263,8 @@ def detect_dm_step(
         Column names for required inputs.
     min_points : int, optional
         Minimum points required on each side of split.
+    min_span_days : float or None, optional
+        Minimum time span in days required on each side of candidate split.
     delta_chi2_thresh : float, optional
         Acceptance threshold in :math:`\\Delta\\chi^2`.
     member_eta : float, optional
@@ -293,14 +317,22 @@ def detect_dm_step(
     if not np.any(good):
         return out
 
-    d = d.loc[good]
-    invf2 = 1.0 / (freq[good] ** 2)
+    d = d.loc[good].sort_values(mjd_col)
+    freq = pd.to_numeric(d[freq_col], errors="coerce").to_numpy(dtype=float)
+    invf2 = 1.0 / (freq**2)
     y = d[resid_col].to_numpy(dtype=float) / invf2
     s = d[sigma_col].to_numpy(dtype=float) / invf2
     mjd = d[mjd_col].to_numpy(dtype=float)
 
     # Run step detection on DM-scaled residuals
-    best = _best_step(mjd, y, s, int(min_points), float(delta_chi2_thresh))
+    best = _best_step(
+        mjd,
+        y,
+        s,
+        int(min_points),
+        float(delta_chi2_thresh),
+        min_span_days=min_span_days,
+    )
     if best is None:
         return out
 

@@ -186,6 +186,7 @@ class StepConfig:
     Attributes:
         enabled (bool): Enable step detection.
         min_points (int): Minimum points on each side of a candidate step.
+        min_span_days (float | None): Minimum time span on each side of a candidate step.
         delta_chi2_thresh (float): Minimum Δχ² to accept a step.
         scope (str): One of ``backend``, ``global``, or ``both``.
 
@@ -196,6 +197,7 @@ class StepConfig:
 
     enabled: bool = True
     min_points: int = 20
+    min_span_days: float | None = None
     delta_chi2_thresh: float = 25.0
     scope: str = "both"
     member_eta: float = 1.0
