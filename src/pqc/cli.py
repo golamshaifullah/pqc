@@ -207,6 +207,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Disable solar elongation feature extraction.",
     )
     p.add_argument(
+        "--solar-elongation-source",
+        choices=["tempo2_general2", "astropy"],
+        default=FeatureConfig().solar_elongation_source,
+        help="Solar elongation backend (default: tempo2_general2).",
+    )
+    p.add_argument(
         "--add-elevation",
         action="store_true",
         help="Add elevation feature (requires astropy + telescope site).",
@@ -400,6 +406,7 @@ def main() -> None:
     feature_cfg = FeatureConfig(
         add_orbital_phase=not args.no_orbital_phase,
         add_solar_elongation=not args.no_solar_elongation,
+        solar_elongation_source=args.solar_elongation_source,
         add_elevation=args.add_elevation,
         add_airmass=args.add_airmass,
         add_parallactic_angle=args.add_parallactic_angle,

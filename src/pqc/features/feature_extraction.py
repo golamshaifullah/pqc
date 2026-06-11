@@ -12,6 +12,8 @@ See Also:
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -69,6 +71,13 @@ _PAR_COORDINATE_SPECS = (
         lon_unit="deg",
         lat_unit="deg",
     ),
+)
+
+SOLAR_ELONGATION_SOURCE_TEMPO2_GENERAL2 = "tempo2_general2"
+SOLAR_ELONGATION_SOURCE_ASTROPY = "astropy"
+SOLAR_ELONGATION_SOURCES = (
+    SOLAR_ELONGATION_SOURCE_TEMPO2_GENERAL2,
+    SOLAR_ELONGATION_SOURCE_ASTROPY,
 )
 
 
@@ -137,6 +146,9 @@ def add_solar_elongation(
     parfile: str | Path,
     *,
     mjd_col: str = "mjd",
+    solar_elongation_source: str = SOLAR_ELONGATION_SOURCE_TEMPO2_GENERAL2,
+    timfile: str | Path | None = None,
+    tempo2_bin: str = "tempo2",
 ) -> pd.DataFrame:
     """Add solar elongation (deg) between pulsar and Sun at each MJD.
 
@@ -144,33 +156,68 @@ def add_solar_elongation(
         df (pandas.DataFrame): Input table containing timing rows.
         parfile (str | Path): Pulsar ``.par`` file with a supported sky position.
         mjd_col (str): Name of the MJD column in ``df``.
+        solar_elongation_source (str): Calculation backend. ``tempo2_general2``
+            uses Tempo2 ``general2`` ``{solarangle}`` and is the default.
+            ``astropy`` uses Astropy geocentric source/Sun vectors.
+        timfile (str | Path | None): Optional ``.tim`` path for Tempo2. If
+            omitted, a sibling ``*_all.tim`` is inferred from ``parfile``.
+        tempo2_bin (str): Tempo2 executable name/path for ``tempo2_general2``.
 
     Returns:
         pandas.DataFrame: Copy of ``df`` with ``solar_elongation_deg``.
 
     Notes:
-        Requires astropy. If astropy is unavailable or sky position is missing,
-        ``solar_elongation_deg`` is filled with NaNs and a warning is issued.
+        The default source requires Tempo2. If the requested backend is
+        unavailable or missing required inputs, ``solar_elongation_deg`` is
+        filled with NaNs and a warning is issued.
 
     Examples:
         >>> # doctest: +SKIP
         >>> # df = add_solar_elongation(df, "/path/to/psr.par")
     """
     d = df.copy()
+    source = str(solar_elongation_source).strip().lower()
+    if source == SOLAR_ELONGATION_SOURCE_TEMPO2_GENERAL2:
+        d["solar_elongation_deg"] = _solar_elongation_from_tempo2_general2(
+            d,
+            parfile,
+            mjd_col=mjd_col,
+            timfile=timfile,
+            tempo2_bin=tempo2_bin,
+        )
+        return d
+    if source == SOLAR_ELONGATION_SOURCE_ASTROPY:
+        d["solar_elongation_deg"] = _solar_elongation_from_astropy(d, parfile, mjd_col=mjd_col)
+        return d
+
+    warn(
+        f"Unknown solar elongation source '{solar_elongation_source}'; "
+        f"expected one of {', '.join(SOLAR_ELONGATION_SOURCES)}. "
+        "solar elongation will be NaN."
+    )
+    d["solar_elongation_deg"] = np.nan
+    return d
+
+
+def _solar_elongation_from_astropy(
+    df: pd.DataFrame,
+    parfile: str | Path,
+    *,
+    mjd_col: str = "mjd",
+) -> np.ndarray:
+    """Return Astropy geocentric source-Sun angular separation in degrees."""
     try:
         import astropy.units as u
         from astropy.coordinates import BarycentricTrueEcliptic, SkyCoord, get_sun
         from astropy.time import Time
     except Exception:
         warn("Astropy is not available; solar elongation will be NaN.")
-        d["solar_elongation_deg"] = np.nan
-        return d
+        return np.full(len(df), np.nan)
 
     position = _read_par_sky_position(parfile)
     if position is None:
         warn("No supported sky-position coordinate pair in parfile; solar elongation will be NaN.")
-        d["solar_elongation_deg"] = np.nan
-        return d
+        return np.full(len(df), np.nan)
 
     psr = _skycoord_from_par_position(position, SkyCoord, BarycentricTrueEcliptic, Time, u)
     if psr is None:
@@ -178,14 +225,133 @@ def add_solar_elongation(
             f"{position.lon_key}/{position.lat_key} invalid in parfile; "
             "solar elongation will be NaN."
         )
-        d["solar_elongation_deg"] = np.nan
-        return d
+        return np.full(len(df), np.nan)
 
-    t = Time(d[mjd_col].to_numpy(dtype=float), format="mjd", scale="tdb")
-    sun = get_sun(t).icrs
-    sep = psr.icrs.separation(sun).to(u.deg).value
-    d["solar_elongation_deg"] = sep
-    return d
+    t = Time(df[mjd_col].to_numpy(dtype=float), format="mjd", scale="tdb")
+    sun = get_sun(t)
+    psr_gcrs = psr.icrs.transform_to(sun.frame.replicate_without_data())
+    sep = _angle_between_cartesian_deg(
+        psr_gcrs.cartesian.xyz.to_value(),
+        sun.cartesian.xyz.to_value(u.m),
+    )
+    return _clip_solar_elongation_deg(sep)
+
+
+def _solar_elongation_from_tempo2_general2(
+    df: pd.DataFrame,
+    parfile: str | Path,
+    *,
+    mjd_col: str = "mjd",
+    timfile: str | Path | None = None,
+    tempo2_bin: str = "tempo2",
+) -> np.ndarray:
+    """Return Tempo2 ``general2`` ``{solarangle}`` values aligned to ``df``."""
+    par_path = Path(parfile)
+    tim_path = Path(timfile) if timfile is not None else _discover_all_tim(par_path)
+    out = np.full(len(df), np.nan)
+
+    if not par_path.exists():
+        warn(f"Parfile not found: {par_path}; solar elongation will be NaN.")
+        return out
+    if not tim_path.exists():
+        warn(f"Timfile not found: {tim_path}; solar elongation will be NaN.")
+        return out
+    if shutil.which(tempo2_bin) is None:
+        warn(f"Tempo2 executable '{tempo2_bin}' not found; solar elongation will be NaN.")
+        return out
+
+    fmt = "PQC_SOLAR\t{sat}\t{solarangle}\n"
+    cmd = [
+        tempo2_bin,
+        "-output",
+        "general2",
+        "-s",
+        fmt,
+        "-f",
+        str(par_path),
+        str(tim_path),
+    ]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    except Exception as exc:
+        warn(f"Tempo2 general2 failed while computing solar elongation: {exc}")
+        return out
+
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "").strip().splitlines()
+        suffix = f": {detail[-1]}" if detail else ""
+        warn(f"Tempo2 general2 failed while computing solar elongation{suffix}")
+        return out
+
+    rows = _parse_tempo2_general2_solarangle(proc.stdout)
+    if not rows:
+        rows = _parse_tempo2_general2_solarangle(proc.stdout + "\n" + proc.stderr)
+    if not rows:
+        warn("Tempo2 general2 produced no solar elongation rows; solar elongation will be NaN.")
+        return out
+
+    tempo_mjd = np.asarray([row[0] for row in rows], dtype=float)
+    tempo_angle = _clip_solar_elongation_deg(np.asarray([row[1] for row in rows], dtype=float))
+    if len(tempo_angle) != len(df):
+        warn(
+            "Tempo2 general2 solar elongation row count does not match input table; "
+            "solar elongation will be NaN."
+        )
+        return out
+
+    df_mjd = df[mjd_col].to_numpy(dtype=float)
+    if np.all(np.isfinite(tempo_mjd)) and np.all(np.isfinite(df_mjd)):
+        out[np.argsort(df_mjd, kind="mergesort")] = tempo_angle[
+            np.argsort(tempo_mjd, kind="mergesort")
+        ]
+    else:
+        out[:] = tempo_angle
+    return out
+
+
+def _discover_all_tim(parfile: str | Path) -> Path:
+    """Return the sibling ``*_all.tim`` path for a parfile path."""
+    parfile = Path(parfile)
+    if parfile.suffix.lower() == ".par":
+        return parfile.with_name(f"{parfile.stem}_all.tim")
+    return parfile.with_name(f"{parfile.name}_all.tim")
+
+
+def _parse_tempo2_general2_solarangle(text: str) -> list[tuple[float, float]]:
+    """Parse marker-prefixed Tempo2 general2 ``{sat}``/``{solarangle}`` rows."""
+    rows: list[tuple[float, float]] = []
+    for raw in text.splitlines():
+        parts = raw.strip().split()
+        if "PQC_SOLAR" not in parts:
+            continue
+        i = parts.index("PQC_SOLAR")
+        if len(parts) <= i + 2:
+            continue
+        try:
+            rows.append((float(parts[i + 1]), float(parts[i + 2])))
+        except ValueError:
+            continue
+    return rows
+
+
+def _angle_between_cartesian_deg(a, b) -> np.ndarray:
+    """Return angles between cartesian vectors, with 0 same-way and 180 opposite."""
+    av = np.asarray(a, dtype=float)
+    bv = np.asarray(b, dtype=float)
+    if av.ndim == 1:
+        av = av.reshape(3, 1)
+    if bv.ndim == 1:
+        bv = bv.reshape(3, 1)
+    dot = np.sum(av * bv, axis=0)
+    norm = np.linalg.norm(av, axis=0) * np.linalg.norm(bv, axis=0)
+    cosang = np.divide(dot, norm, out=np.full_like(dot, np.nan), where=norm > 0)
+    return np.degrees(np.arccos(np.clip(cosang, -1.0, 1.0)))
+
+
+def _clip_solar_elongation_deg(values) -> np.ndarray:
+    """Constrain finite solar elongation values to the physical [0, 180] range."""
+    arr = np.asarray(values, dtype=float)
+    return np.where(np.isfinite(arr), np.clip(arr, 0.0, 180.0), np.nan)
 
 
 def add_altaz_features(
@@ -473,6 +639,7 @@ def add_feature_columns(
     mjd_col: str = "mjd",
     add_orb_phase: bool = True,
     add_solar: bool = True,
+    solar_elongation_source: str = SOLAR_ELONGATION_SOURCE_TEMPO2_GENERAL2,
     add_elevation: bool = False,
     add_airmass: bool = False,
     add_parallactic: bool = False,
@@ -488,6 +655,7 @@ def add_feature_columns(
         mjd_col (str): Name of the MJD column in ``df``.
         add_orb_phase (bool): If True, add orbital phase.
         add_solar (bool): If True, add solar elongation.
+        solar_elongation_source (str): Backend for solar elongation.
         add_elevation (bool): If True, add elevation.
         add_airmass (bool): If True, add airmass.
         add_parallactic (bool): If True, add parallactic angle.
@@ -506,7 +674,12 @@ def add_feature_columns(
     if add_orb_phase:
         d = add_orbital_phase(d, parfile, mjd_col=mjd_col)
     if add_solar:
-        d = add_solar_elongation(d, parfile, mjd_col=mjd_col)
+        d = add_solar_elongation(
+            d,
+            parfile,
+            mjd_col=mjd_col,
+            solar_elongation_source=solar_elongation_source,
+        )
     if add_elevation or add_airmass or add_parallactic:
         d = add_altaz_features(
             d,

@@ -23,8 +23,9 @@ class FeatureConfig:
 
     Attributes:
         add_orbital_phase (bool): If True, compute orbital phase from PB/T0.
-        add_solar_elongation (bool): If True, compute solar elongation (requires
-            astropy).
+        add_solar_elongation (bool): If True, compute solar elongation.
+        solar_elongation_source (str): Solar elongation backend. Defaults to
+            ``tempo2_general2``; use ``astropy`` only when explicitly desired.
         add_elevation (bool): If True, compute elevation (deg) from telescope
             location.
         add_airmass (bool): If True, compute airmass from telescope location.
@@ -35,9 +36,9 @@ class FeatureConfig:
             XYZ coords.
 
     Notes:
-        Feature extraction is optional. If astropy is not available, the
-        sky-position-based features are filled with NaNs and a warning is
-        emitted by the feature extraction helpers.
+        Feature extraction is optional. If a requested backend is not available,
+        the corresponding features are filled with NaNs and a warning is emitted
+        by the feature extraction helpers.
 
     Examples:
         >>> FeatureConfig(add_solar_elongation=False, add_freq_bin=True)
@@ -45,6 +46,7 @@ class FeatureConfig:
 
     add_orbital_phase: bool = True
     add_solar_elongation: bool = True
+    solar_elongation_source: str = "tempo2_general2"
     add_elevation: bool = False
     add_airmass: bool = False
     add_parallactic_angle: bool = False

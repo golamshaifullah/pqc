@@ -1315,6 +1315,7 @@ def run_pipeline(
         mjd_col="mjd",
         add_orb_phase=feature_cfg.add_orbital_phase,
         add_solar=feature_cfg.add_solar_elongation,
+        solar_elongation_source=feature_cfg.solar_elongation_source,
         add_elevation=feature_cfg.add_elevation,
         add_airmass=feature_cfg.add_airmass,
         add_parallactic=feature_cfg.add_parallactic_angle,
