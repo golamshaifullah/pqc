@@ -45,12 +45,14 @@ def _best_step(
     min_points: int,
     delta_chi2_thresh: float,
     min_span_days: float | None = None,
+    member_tmax_days: float | None = None,
 ):
     n = len(y)
     if n < 2 * min_points:
         return None
 
     min_span = None if min_span_days is None else float(min_span_days)
+    member_tmax = None if member_tmax_days is None else float(member_tmax_days)
     w = 1.0 / (s**2)
     # cumulative sums for fast split stats
     w_c = np.cumsum(w)
@@ -60,7 +62,12 @@ def _best_step(
     for i in range(min_points, n - min_points + 1):
         if min_span is not None:
             pre_span = mjd[i - 1] - mjd[0]
-            post_span = mjd[-1] - mjd[i]
+            t0 = 0.5 * (mjd[i - 1] + mjd[i])
+            if member_tmax is None:
+                post_end = mjd[-1]
+            else:
+                post_end = min(mjd[-1], t0 + member_tmax)
+            post_span = post_end - mjd[i]
             if pre_span < min_span or post_span < min_span:
                 continue
         w1 = w_c[i - 1]
@@ -167,6 +174,7 @@ def detect_step(
         int(min_points),
         float(delta_chi2_thresh),
         min_span_days=min_span_days,
+        member_tmax_days=member_tmax_days,
     )
     if best is None:
         return out
@@ -332,6 +340,7 @@ def detect_dm_step(
         int(min_points),
         float(delta_chi2_thresh),
         min_span_days=min_span_days,
+        member_tmax_days=member_tmax_days,
     )
     if best is None:
         return out
